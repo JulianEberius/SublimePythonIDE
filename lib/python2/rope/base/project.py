@@ -18,6 +18,7 @@ class _Project(object):
         self.prefs = prefs.Prefs()
         self.data_files = _DataFiles(self)
 
+    @utils.memoize
     def get_resource(self, resource_name):
         """Get a resource in a project.
 
@@ -360,7 +361,7 @@ class _DataFiles(object):
             path += '.gz'
         return self.project.get_file(path)
 
-
+@utils.cached(1000)
 def _realpath(path):
     """Return the real path of `path`
 
