@@ -16,7 +16,7 @@ from pyflakes.checker import Checker
 from rope.base.project import Project
 from rope.base import libutils
 from rope.base.ast import parse
-from rope.contrib.codeassist import code_assist, sorted_proposals
+from rope.contrib.codeassist import code_assist, sorted_proposals, get_doc
 from rope.base.exceptions import ModuleSyntaxError
 
 HEARTBEAT_TIMEOUT = 10
@@ -47,7 +47,7 @@ def insert_string(p):
 
     return result
 
-class RopeMixin(object):
+class RopeProjectMixin(object):
     def __init__(self):
         self.projects = {}
 
@@ -68,7 +68,7 @@ class RopeMixin(object):
         return [p for p in self.projects.keys()]
 
 
-class CompletionMixin(object):
+class RopeFunctionsMixin(object):
     '''Uses Rope to generate completion proposals'''
 
     def profile_completions(self, source, project_path, file_path, loc):
@@ -102,6 +102,16 @@ class CompletionMixin(object):
                         if p.name != 'self=']
         return proposals
 
+    def documentation(self, source, project_path, file_path, loc):
+        project = self.project_for(project_path)
+        resource = libutils.path_to_resource(project, file_path)
+        try:
+            doc = get_doc(project, source, loc,
+                resource=resource, maxfixes=3)
+        except ModuleSyntaxError:
+            doc = None
+        return doc
+
 class HeartBeatMixin(object):
     """Waits for heartbeat messages from SublimeText. The main thread
     kills the process if no heartbeat arrived in HEARTBEAT_TIMEOUT seconds."""
@@ -126,13 +136,13 @@ class FlakeMixin(object):
         else:
             return Checker(tree).messages
 
-class Server(RopeMixin, CompletionMixin, HeartBeatMixin, FlakeMixin):
+class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, FlakeMixin):
     '''Python's SimpleXMLRPCServer accepts just one call of
     register_instance(), so this class just combines the above
     mixins.'''
     def __init__(self):
-        RopeMixin.__init__(self)
-        CompletionMixin.__init__(self)
+        RopeProjectMixin.__init__(self)
+        RopeFunctionsMixin.__init__(self)
         HeartBeatMixin.__init__(self)
         FlakeMixin.__init__(self)
 
@@ -146,7 +156,7 @@ class XMLRPCServerThread(threading.Thread):
         self.daemon = True
 
     def run(self):
-        self.server = SimpleXMLRPCServer(("localhost", port),allow_none=True)
+        self.server = SimpleXMLRPCServer(("localhost", port), allow_none=True)
         self.server.register_instance(Server())
         self.server.serve_forever()
 

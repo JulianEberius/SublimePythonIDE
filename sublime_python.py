@@ -5,6 +5,7 @@ import time
 import itertools
 import subprocess
 import pipes
+import threading
 import xmlrpc.client
 import sublime
 import sublime_plugin
@@ -13,6 +14,8 @@ import sublime_plugin
 ROOT_PATHS = {}
 # contains proxy objects for external Python processes, by interpreter used
 PROXIES = {}
+# lock for aquiring proxy instances
+PROXY_LOCK = threading.RLock()
 # contains errors found by PyFlask
 ERRORS_BY_LINE = {}
 
@@ -35,8 +38,8 @@ def get_setting(key, default_value=None):
     return s.get(key, default_value)
 
 class Proxy(object):
-    '''Abstracts the external Python processes that perform the actual
-    functionality. SublimePython just calls local methods on Proxy objects.
+    '''Abstracts the external Python processes that do the actual
+    work. SublimePython just calls local methods on Proxy objects.
     The Proxy objects start external Python processes, send them heartbeat
     messages, communicate with them and restart them if necessary.'''
     def __init__(self, python):
@@ -61,6 +64,9 @@ class Proxy(object):
         print("starting server on port %i" % self.port)
         self.proxy = xmlrpc.client.ServerProxy(
             'http://localhost:%i' % self.port)
+        self.set_heartbeat_timer()
+
+    def set_heartbeat_timer(self):
         sublime.set_timeout_async(
             self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
 
@@ -71,8 +77,7 @@ class Proxy(object):
     def send_heartbeat(self):
         if self.proxy:
             self.proxy.heartbeat()
-            sublime.set_timeout_async(
-                self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
+            self.set_heartbeat_timer()
 
     def __getattr__(self, attr):
         '''deletegate all other calls to the xmlrpc client.
@@ -98,14 +103,19 @@ class Proxy(object):
         return wrapper
 
 def proxy_for(view):
-    python = get_setting("python_interpreter", "")
-    if python == "":
-        python = "python"
-    if python in PROXIES:
-        proxy = PROXIES[python]
-    else:
-        proxy = Proxy(python)
-        PROXIES[python] = proxy
+    '''retrieve an existing proxy for an external Python process.
+    will automatically create a new proxy if non exists for the
+    requested interpreter'''
+    proxy = None
+    with PROXY_LOCK:
+        python = get_setting("python_interpreter", "")
+        if python == "":
+            python = "python"
+        if python in PROXIES:
+            proxy = PROXIES[python]
+        else:
+            proxy = Proxy(python)
+            PROXIES[python] = proxy
     return proxy
 
 
@@ -133,13 +143,14 @@ def root_folder_for(view):
 class PythonStopServerCommand(sublime_plugin.WindowCommand):
     '''TODO: update to Proxy'''
     def run(self, *args):
-        python = get_setting("python_interpreter", "")
-        if python == "":
-            python = "python"
-        proxy = PROXIES.get(python, None)
-        if proxy:
-            proxy.stop()
-            del proxy[python]
+        with PROXY_LOCK:
+            python = get_setting("python_interpreter", "")
+            if python == "":
+                python = "python"
+            proxy = PROXIES.get(python, None)
+            if proxy:
+                proxy.stop()
+                del proxy[python]
 
 class PythonTestCommand(sublime_plugin.WindowCommand):
     def run(self, *args):
@@ -149,6 +160,12 @@ class PythonTestCommand(sublime_plugin.WindowCommand):
 
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     def on_load_async(self, view):
+        '''Check the file syntax on load'''
+        if not 'Python' in view.settings().get('syntax') or view.is_scratch():
+            return
+        self._check(view)
+
+    def on_activated(self, view):
         '''Check the file syntax on load'''
         if not 'Python' in view.settings().get('syntax') or view.is_scratch():
             return
@@ -249,6 +266,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                     'keyword', 'dot', DRAW_TYPE)
 
 class PythonCompletionsListener(sublime_plugin.EventListener):
+
     def on_query_completions(self, view, prefix, locations):
         if not view.match_selector(locations[0], 'source.python'):
             return []
@@ -264,3 +282,47 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
             completion_flags = sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
             return (proposals, completion_flags)
         return proposals
+
+class PythonGetDocumentation(sublime_plugin.WindowCommand):
+    '''Retrieves the docstring for the identifier under the cursor and
+    displays it in a new panel.'''
+    def run(self):
+        view = self.window.active_view()
+        row, col = view.rowcol(view.sel()[0].a)
+        offset = view.text_point(row, col)
+        path = view.file_name()
+        source = view.substr(sublime.Region(0, view.size()))
+        if view.substr(offset) in [u'(', u')']:
+            offset = view.text_point(row, col - 1)
+
+        proxy = proxy_for(view)
+        doc = proxy.documentation(source, root_folder_for(view), path, offset)
+        if doc:
+            self.display_documentation(view, doc)
+        else:
+            word = view.substr(view.word(offset))
+            self.notify_no_documentation(view, word)
+
+    def notify_no_documentation(self, view, word):
+        view.set_status(
+            "rope_documentation_error",
+            "No documentation found for %s" % word
+        )
+        def clear_status_callback():
+            view.erase_status("rope_documentation_error")
+        sublime.set_timeout_async(clear_status_callback, 5000)
+
+    def display_documentation(self, view, doc):
+        out_view = view.window().get_output_panel(
+            "rope_python_documentation")
+        out_view.run_command("simple_clear_and_insert",
+            {"insert_string": doc})
+        view.window().run_command(
+            "show_panel", {"panel": "output.rope_python_documentation"})
+
+class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
+    def run(self, edit, block=False, **kwargs):
+        doc = kwargs['insert_string']
+        r = sublime.Region(0, self.view.size())
+        self.view.erase(edit, r)
+        self.view.insert(edit, 0, doc)
