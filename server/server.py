@@ -16,7 +16,7 @@ from pyflakes.checker import Checker
 from rope.base.project import Project
 from rope.base import libutils
 from rope.base.ast import parse
-from rope.contrib.codeassist import code_assist, sorted_proposals, get_doc
+from rope.contrib.codeassist import code_assist, sorted_proposals, get_doc, get_definition_location
 from rope.base.exceptions import ModuleSyntaxError
 
 HEARTBEAT_TIMEOUT = 10
@@ -111,6 +111,16 @@ class RopeFunctionsMixin(object):
         except ModuleSyntaxError:
             doc = None
         return doc
+
+    def definition_location(self, source, project_path, file_path, loc):
+        project = self.project_for(project_path)
+        resource = libutils.path_to_resource(project, file_path)
+        try:
+            def_resource, def_lineno = get_definition_location(
+                project, source, loc, resource=resource, maxfixes=3)
+        except ModuleSyntaxError:
+            return None, None
+        return def_resource.real_path, def_lineno
 
 class HeartBeatMixin(object):
     """Waits for heartbeat messages from SublimeText. The main thread

@@ -165,7 +165,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             return
         self._check(view)
 
-    def on_activated(self, view):
+    def on_activated_async(self, view):
         '''Check the file syntax on load'''
         if not 'Python' in view.settings().get('syntax') or view.is_scratch():
             return
@@ -326,3 +326,30 @@ class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
         r = sublime.Region(0, self.view.size())
         self.view.erase(edit, r)
         self.view.insert(edit, 0, doc)
+
+class PythonGotoDefinition(sublime_plugin.WindowCommand):
+    '''
+    Shows the definition of the identifier under the cursor, project-wide.
+    '''
+    def run(self, *args):
+        view = self.window.active_view()
+        row, col = view.rowcol(view.sel()[0].a)
+        offset = view.text_point(row, col)
+        path = view.file_name()
+        source = view.substr(sublime.Region(0, view.size()))
+        if view.substr(offset) in [u'(', u')']:
+            offset = view.text_point(row, col - 1)
+
+        proxy = proxy_for(view)
+        path, lineno = proxy.definition_location(source, root_folder_for(view), path, offset)
+
+        window = self.window
+        if path is not None:
+            path = path + ":" + str(lineno)
+            window.open_file(path, sublime.ENCODED_POSITION)
+        elif lineno is not None:
+            path = view.file_name() + ":" + str(lineno)
+            window.open_file(path, sublime.ENCODED_POSITION)
+        else:
+            # fail silently (user selected whitespace, etc)
+            pass
