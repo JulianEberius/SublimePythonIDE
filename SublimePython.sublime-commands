@@ -1,6 +1,6 @@
 [
     {
-        "caption": "Python: Server",
-        "command": "python_start_server"
+        "caption": "Python: Stop Server",
+        "command": "python_stop_server"
     }
 ]

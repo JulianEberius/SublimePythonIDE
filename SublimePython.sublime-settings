@@ -1,2 +1,5 @@
 {
+    // leave empty string to use default system interpreter
+    "python_interpreter": "",
+    "pyflakes_linting": true
 }
