@@ -4,13 +4,13 @@ import threading
 import time
 
 if sys.version_info[0] == 2:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib/python2"))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib/python2"))
     from SimpleXMLRPCServer import SimpleXMLRPCServer
 else:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib/python3"))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib/python3"))
     from xmlrpc.server import SimpleXMLRPCServer
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
 from pyflakes.checker import Checker
 
 from rope.base.project import Project
@@ -58,16 +58,15 @@ class RopeMixin(object):
 
     def project_for(self, path):
         if path in self.projects:
-            print("requested project for %s found" % path)
             project = self.projects[path]
         else:
-            print("new project for %s created" % path)
             project = self.create_project(path)
             self.projects[path] = project
         return project
 
-    def list_projects(self):
-        return [p.root for p in self.projects.values()]
+    def list_projects(self,var):
+        return [p for p in self.projects.keys()]
+
 
 class CompletionMixin(object):
     '''Uses Rope to generate completion proposals'''
@@ -96,7 +95,7 @@ class CompletionMixin(object):
         except Exception:
             import traceback
             traceback.print_exc()
-            return None
+            return []
 
         proposals = [(proposal_string(p), insert_string(p))
                         for p in proposals
@@ -123,7 +122,7 @@ class FlakeMixin(object):
         try:
             tree = parse(code)
         except (SyntaxError, IndentationError, ValueError) as e:
-            return e
+            return {"lineno": e.lineno, "offset": e.offset, "text": e.text}
         else:
             return Checker(tree).messages
 

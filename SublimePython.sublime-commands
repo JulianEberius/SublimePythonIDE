@@ -2,5 +2,9 @@
     {
         "caption": "Python: Stop Server",
         "command": "python_stop_server"
+    },
+    {
+        "caption": "Python: Test",
+        "command": "python_test"
     }
 ]

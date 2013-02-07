@@ -11,13 +11,15 @@ import sublime_plugin
 
 # contains root paths per view, see root_folder_for()
 ROOT_PATHS = {}
-# contains proxy objects representing external python processes, per interpreter used
+# contains proxy objects for external Python processes, by interpreter used
 PROXIES = {}
-# Stors errors found by PyFlask
+# contains errors found by PyFlask
 ERRORS_BY_LINE = {}
 
 # Constants
-SERVER_SCRIPT = pipes.quote(os.path.join(os.path.dirname(__file__), "completion_server.py"))
+SERVER_SCRIPT = pipes.quote(os.path.join(
+    os.path.dirname(__file__), "server/server.py"))
+RETRY_CONNECTION_LIMIT = 5
 HEARTBEAT_FREQUENCY = 9
 DRAW_TYPE = 4 | 32
 
@@ -56,8 +58,11 @@ class Proxy(object):
         self.proc = subprocess.Popen(
                 "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
                 shell=True)
-        self.proxy = xmlrpc.client.ServerProxy('http://localhost:%i' % self.port)
-        sublime.set_timeout_async(self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
+        print("starting server on port %i" % self.port)
+        self.proxy = xmlrpc.client.ServerProxy(
+            'http://localhost:%i' % self.port)
+        sublime.set_timeout_async(
+            self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
 
     def stop(self):
         self.proxy = None
@@ -66,7 +71,8 @@ class Proxy(object):
     def send_heartbeat(self):
         if self.proxy:
             self.proxy.heartbeat()
-            sublime.set_timeout_async(self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
+            sublime.set_timeout_async(
+                self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
 
     def __getattr__(self, attr):
         '''deletegate all other calls to the xmlrpc client.
@@ -76,20 +82,17 @@ class Proxy(object):
             method = getattr(self.proxy, attr)
             result = None
             tries = 0
-            while tries < 5:
+            while tries < RETRY_CONNECTION_LIMIT:
                 try:
                     result = method(*args, **kwargs)
                     break
-                except Exception as e:
+                except Exception:
                     tries += 1
-                    print(e)
                     if self.proc.poll() is None:
                         # just retry
-                        print("retrying in 0.5s")
-                        time.sleep(0.1)
+                        time.sleep(0.2)
                     else:
                         # died, restart and retry
-                        print("restarting")
                         self.restart()
             return result
         return wrapper
@@ -99,10 +102,8 @@ def proxy_for(view):
     if python == "":
         python = "python"
     if python in PROXIES:
-        print("existing proxy for python %s" % python)
         proxy = PROXIES[python]
     else:
-        print("started server for %s" % python)
         proxy = Proxy(python)
         PROXIES[python] = proxy
     return proxy
@@ -126,7 +127,6 @@ def root_folder_for(view):
             if in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
-    print("Root for %s is %s" % (file_name, root_path))
     return root_path
 
 
@@ -140,7 +140,12 @@ class PythonStopServerCommand(sublime_plugin.WindowCommand):
         if proxy:
             proxy.stop()
             del proxy[python]
-            print("terminated server for %s" % python)
+
+class PythonTestCommand(sublime_plugin.WindowCommand):
+    def run(self, *args):
+        view = self.window.active_view()
+        proxy = proxy_for(view)
+        print("projects:", proxy.list_projects("peter"))
 
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     def on_load_async(self, view):
@@ -173,7 +178,8 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         lineno = view.rowcol(view.sel()[0].end())[0] + 1
         if lineno in errors_by_line.keys():
             view.set_status('sublimerope-errors', '; '.join(
-                [m['message'] % m['message_args'] for m in errors_by_line[lineno]]
+                [m['message'] % m['message_args']
+                for m in errors_by_line[lineno]]
             ))
         else:
             view.erase_status('sublimerope-errors')
@@ -183,8 +189,9 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             return
 
         proxy = proxy_for(view)
-        check_result = proxy.check_syntax(view.substr(sublime.Region(0, view.size())))
-        # the result of a flakes check can be a list of errors, or single syntax exception
+        check_result = proxy.check_syntax(
+            view.substr(sublime.Region(0, view.size())))
+        # the result can be a list of errors, or single syntax exception
         if isinstance(check_result, list):
             by_line = lambda e: e['lineno']
             errors = sorted(check_result, key=by_line)
@@ -195,6 +202,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             self.visualize_errors(view, errors)
         else:
             self.handle_syntax_exception(view, check_result)
+        self.on_selection_modified_async(view)
 
     def visualize_errors(self, view, errors):
         view.erase_regions('sublimerope-errors')
@@ -213,12 +221,16 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     def handle_syntax_exception(self, view, e):
         if not get_setting('pyflakes_linting', True):
             return
-        (lineno, offset, text) = e.lineno, e.offset, e.text
+        if e is None:
+            return
+        (lineno, offset, text) = e["lineno"], e["offset"], e["text"]
 
         if text is None:
-            print >> sys.stderr, "SublimeRope problem decoding src file %s" % (
-                self.filename,)
+            print >> sys.stderr, "SublimePython error decoding src file %s" % (
+                self.filename)
         else:
+            ERRORS_BY_LINE[view.id()] = {
+                lineno: [{"message": "Syntax error", "message_args": ()}]}
             line = text.splitlines()[-1]
             if offset is not None:
                 offset = offset - (len(text) - len(line))
@@ -245,11 +257,10 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         loc = locations[0]
         t0 = time.time()
         proxy = proxy_for(view)
-        print("proxy for %s is %s" % (view.id(), str(proxy)))
         proposals = proxy.completions(source, root_folder_for(view), path, loc)
         # proposals = proxy.profile_completions(source, root_folder_for(view), path, loc)
         print("+++", time.time() - t0)
         if proposals:
-            completion_flags = sublime.INHIBIT_WORD_COMPLETIONS
+            completion_flags = sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
             return (proposals, completion_flags)
         return proposals
