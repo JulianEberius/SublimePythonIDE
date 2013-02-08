@@ -183,6 +183,7 @@ class PyCore(object):
     #    packages, that is most of the time
     #  - We need a separate resource observer; `self.observer`
     #    does not get notified about module and folder creations
+    @utils.memoize
     def get_source_folders(self):
         """Returns project source folders"""
         if self.project.root is None:
@@ -206,6 +207,7 @@ class PyCore(object):
         else:
             return False
 
+    @utils.memoize
     def _find_source_folders(self, folder):
         for resource in folder.get_folders():
             if self._is_package(resource):

@@ -1,9 +1,10 @@
 import _ast
 from _ast import *
 
-from rope.base import fscommands
+from rope.base import fscommands, utils
 
 
+@utils.cached(10)
 def parse(source, filename='<string>'):
     # NOTE: the raw string should be given to `compile` function
     if isinstance(source, str):

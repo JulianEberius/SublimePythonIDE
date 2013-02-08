@@ -63,7 +63,7 @@ class Proxy(object):
         self.proc = subprocess.Popen(
                 "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
                 shell=True)
-        print("starting server on port %i" % self.port)
+        print("starting server on port %i with %s" % (self.port, self.python))
         self.proxy = xmlrpc.client.ServerProxy(
             'http://localhost:%i' % self.port)
         self.set_heartbeat_timer()
