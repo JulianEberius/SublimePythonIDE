@@ -10,7 +10,7 @@ import xmlrpc.client
 import sublime
 import sublime_plugin
 
-# contains root paths per view, see root_folder_for()
+# contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
 # contains proxy objects for external Python processes, by interpreter used
 PROXIES = {}
@@ -18,6 +18,8 @@ PROXIES = {}
 PROXY_LOCK = threading.RLock()
 # contains errors found by PyFlask
 ERRORS_BY_LINE = {}
+# saves positions on goto_definition
+GOTO_STACK = []
 
 # Constants
 SERVER_SCRIPT = pipes.quote(os.path.join(
@@ -141,7 +143,6 @@ def root_folder_for(view):
 
 
 class PythonStopServerCommand(sublime_plugin.WindowCommand):
-    '''TODO: update to Proxy'''
     def run(self, *args):
         with PROXY_LOCK:
             python = get_setting("python_interpreter", "")
@@ -156,7 +157,7 @@ class PythonTestCommand(sublime_plugin.WindowCommand):
     def run(self, *args):
         view = self.window.active_view()
         proxy = proxy_for(view)
-        print("projects:", proxy.list_projects("peter"))
+        print("projects:", proxy.list_projects())
 
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     def on_load_async(self, view):
@@ -166,16 +167,13 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         self._check(view)
 
     def on_activated_async(self, view):
-        '''Check the file syntax on load'''
+        '''Check the file syntax on activated'''
         if not 'Python' in view.settings().get('syntax') or view.is_scratch():
             return
         self._check(view)
 
     def on_post_save_async(self, view):
-        """
-        Check file syntax on save if autoimport improvements are setted on.
-        Updates Rope's database in response to events (e.g. post_save)
-        """
+        '''Check the file syntax on save'''
         if not 'Python' in view.settings().get('syntax') or view.is_scratch():
             return
         self._check(view)
@@ -189,17 +187,17 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         errors_by_line = ERRORS_BY_LINE.get(vid, None)
 
         if not errors_by_line:
-            view.erase_status('sublimerope-errors')
+            view.erase_status('sublimepython-errors')
             return
 
         lineno = view.rowcol(view.sel()[0].end())[0] + 1
-        if lineno in errors_by_line.keys():
-            view.set_status('sublimerope-errors', '; '.join(
+        if lineno in errors_by_line:
+            view.set_status('sublimepython-errors', '; '.join(
                 [m['message'] % m['message_args']
                 for m in errors_by_line[lineno]]
             ))
         else:
-            view.erase_status('sublimerope-errors')
+            view.erase_status('sublimepython-errors')
 
     def _check(self, view):
         if not get_setting('pyflakes_linting', True):
@@ -222,7 +220,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         self.on_selection_modified_async(view)
 
     def visualize_errors(self, view, errors):
-        view.erase_regions('sublimerope-errors')
+        view.erase_regions('sublimepython-errors')
         errors_by_line = ERRORS_BY_LINE[view.id()]
 
         outlines = [view.line(view.text_point(lineno - 1, 0))
@@ -230,10 +228,10 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
 
         if outlines:
             view.add_regions(
-                'sublimerope-errors', outlines, 'keyword', 'dot',
+                'sublimepython-errors', outlines, 'keyword', 'dot',
                 DRAW_TYPE)
         else:
-            view.erase_regions("sublimerope-errors")
+            view.erase_regions("sublimepython-errors")
 
     def handle_syntax_exception(self, view, e):
         if not get_setting('pyflakes_linting', True):
@@ -252,34 +250,36 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             if offset is not None:
                 offset = offset - (len(text) - len(line))
 
-            view.erase_regions('sublimerope-errors')
+            view.erase_regions('sublimepython-errors')
             if offset is not None:
                 text_point = view.text_point(lineno - 1, 0) + offset
                 view.add_regions(
-                    'sublimerope-errors',
+                    'sublimepython-errors',
                     [sublime.Region(text_point, text_point + 1)],
                     'keyword', 'dot', DRAW_TYPE)
             else:
                 view.add_regions(
-                    'sublimerope-errors',
+                    'sublimepython-errors',
                     [view.line(view.text_point(lineno - 1, 0))],
                     'keyword', 'dot', DRAW_TYPE)
 
 class PythonCompletionsListener(sublime_plugin.EventListener):
-
+    '''Retrieves completion proposals from external Python
+    processes running Rope'''
     def on_query_completions(self, view, prefix, locations):
         if not view.match_selector(locations[0], 'source.python'):
             return []
         path = view.file_name()
         source = view.substr(sublime.Region(0, view.size()))
         loc = locations[0]
-        t0 = time.time()
+        # t0 = time.time()
         proxy = proxy_for(view)
         proposals = proxy.completions(source, root_folder_for(view), path, loc)
         # proposals = proxy.profile_completions(source, root_folder_for(view), path, loc)
-        print("+++", time.time() - t0)
+        # print("+++", time.time() - t0)
         if proposals:
-            completion_flags = sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS
+            completion_flags = sublime.INHIBIT_WORD_COMPLETIONS |\
+                               sublime.INHIBIT_EXPLICIT_COMPLETIONS
             return (proposals, completion_flags)
         return proposals
 
@@ -341,15 +341,30 @@ class PythonGotoDefinition(sublime_plugin.WindowCommand):
             offset = view.text_point(row, col - 1)
 
         proxy = proxy_for(view)
-        path, lineno = proxy.definition_location(source, root_folder_for(view), path, offset)
+        def_result = proxy.definition_location(source, root_folder_for(view), path, offset)
+        if not def_result:
+            return
+        target_path, target_lineno = def_result
+        current_lineno = view.rowcol(view.sel()[0].end())[0] + 1
 
-        window = self.window
         if path is not None:
-            path = path + ":" + str(lineno)
-            window.open_file(path, sublime.ENCODED_POSITION)
-        elif lineno is not None:
-            path = view.file_name() + ":" + str(lineno)
-            window.open_file(path, sublime.ENCODED_POSITION)
+            self.save_pos(view.file_name(), current_lineno)
+            path = target_path + ":" + str(target_lineno)
+            self.window.open_file(path, sublime.ENCODED_POSITION)
+        elif target_lineno is not None:
+            self.save_pos(view.file_name(), current_lineno)
+            path = view.file_name() + ":" + str(target_lineno)
+            self.window.open_file(path, sublime.ENCODED_POSITION)
         else:
             # fail silently (user selected whitespace, etc)
             pass
+
+    def save_pos(self, file_path, lineno):
+        GOTO_STACK.append((file_path, lineno))
+
+class PythonGoBack(sublime_plugin.WindowCommand):
+    def run(self, *args):
+        if GOTO_STACK:
+            file_name, lineno = GOTO_STACK.pop()
+            path = file_name + ":" + str(lineno)
+            self.window.open_file(path, sublime.ENCODED_POSITION)

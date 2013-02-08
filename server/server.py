@@ -19,57 +19,36 @@ from rope.base.ast import parse
 from rope.contrib.codeassist import code_assist, sorted_proposals, get_doc, get_definition_location
 from rope.base.exceptions import ModuleSyntaxError
 
-HEARTBEAT_TIMEOUT = 10
+# global state of the server process
 last_heartbeat = None
-
-def proposal_string(p):
-    if p.parameters:
-        params = [par for par in p.parameters if par != 'self']
-        result = '{name}({params})'.format(
-            name=p.name,
-            params=', '.join(param for param in params)
-        )
-    else:
-        result = p.name
-
-    return '{result}\t({scope}, {type})'.format(
-        result=result, scope=p.scope, type=p.type)
-
-def insert_string(p):
-    if p.parameters:
-        params = [par for par in p.parameters if par != 'self']
-        param_snippet = ", ".join(
-            "${%i:%s}" %
-            (idx + 1, param) for idx, param in enumerate(params))
-        result = "%s(%s)" %(p.name, param_snippet)
-    else:
-        result = p.name
-
-    return result
+# constants
+HEARTBEAT_TIMEOUT = 10
 
 class RopeProjectMixin(object):
+    '''Creates and manages Rope projects'''
     def __init__(self):
         self.projects = {}
-
-    def create_project(self, path):
-        project = Project(path,
-            fscommands=None, ropefolder=None)
-        return project
 
     def project_for(self, path):
         if path in self.projects:
             project = self.projects[path]
         else:
-            project = self.create_project(path)
+            project = self._create_project(path)
             self.projects[path] = project
         return project
 
-    def list_projects(self,var):
-        return [p for p in self.projects.keys()]
+    def list_projects(self):
+        return self.projects.keys()
+
+    def _create_project(self, path):
+        project = Project(path,
+            fscommands=None, ropefolder=None)
+        return project
 
 
 class RopeFunctionsMixin(object):
-    '''Uses Rope to generate completion proposals'''
+    '''Uses Rope to generate completion proposals, depends on
+    RopeProjectMixin'''
 
     def profile_completions(self, source, project_path, file_path, loc):
         '''Only for testing: runs Rope's code completion functionality in the
@@ -97,7 +76,7 @@ class RopeFunctionsMixin(object):
             traceback.print_exc()
             return []
 
-        proposals = [(proposal_string(p), insert_string(p))
+        proposals = [(self._proposal_string(p), self._insert_string(p))
                         for p in proposals
                         if p.name != 'self=']
         return proposals
@@ -121,6 +100,32 @@ class RopeFunctionsMixin(object):
         except ModuleSyntaxError:
             return None, None
         return def_resource.real_path, def_lineno
+
+    def _proposal_string(self, p):
+        if p.parameters:
+            params = [par for par in p.parameters if par != 'self']
+            result = '{name}({params})'.format(
+                name=p.name,
+                params=', '.join(param for param in params)
+            )
+        else:
+            result = p.name
+
+        return '{result}\t({scope}, {type})'.format(
+            result=result, scope=p.scope, type=p.type)
+
+    def _insert_string(self, p):
+        if p.parameters:
+            params = [par for par in p.parameters if par != 'self']
+            param_snippet = ", ".join(
+                "${%i:%s}" %
+                (idx + 1, param) for idx, param in enumerate(params))
+            result = "%s(%s)" %(p.name, param_snippet)
+        else:
+            result = p.name
+
+        return result
+
 
 class HeartBeatMixin(object):
     """Waits for heartbeat messages from SublimeText. The main thread
