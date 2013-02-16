@@ -23,18 +23,35 @@ from rope.base.exceptions import ModuleSyntaxError
 last_heartbeat = None
 # constants
 HEARTBEAT_TIMEOUT = 10
+NO_ROOT_PATH = -1
+
+def debug(f):
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except:
+            import traceback
+            traceback.print_exc()
+    return wrapped
 
 class RopeProjectMixin(object):
     '''Creates and manages Rope projects'''
     def __init__(self):
         self.projects = {}
 
-    def project_for(self, path):
-        if path in self.projects:
-            project = self.projects[path]
+    def project_for(self, project_path, file_path):
+        if project_path == NO_ROOT_PATH:
+            if file_path in self.projects:
+                project = self.projects[file_path]
+            else:
+                project = self._create_single_file_project(file_path)
+                self.projects[file_path] = project
         else:
-            project = self._create_project(path)
-            self.projects[path] = project
+            if project_path in self.projects:
+                project = self.projects[project_path]
+            else:
+                project = self._create_project(project_path)
+                self.projects[project_path] = project
         return project
 
     def list_projects(self):
@@ -43,6 +60,16 @@ class RopeProjectMixin(object):
     def _create_project(self, path):
         project = Project(path,
             fscommands=None, ropefolder=None)
+        return project
+
+    def _create_single_file_project(self, path):
+        folder = os.path.dirname(path)
+        ignored_res = os.listdir(folder)
+        ignored_res.remove(os.path.basename(path))
+
+        project = Project(
+            folder, ropefolder=None,
+            ignored_resources=ignored_res, fscommands=None)
         return project
 
 
@@ -63,7 +90,7 @@ class RopeFunctionsMixin(object):
         return self.completions(source, project_path, file_path, loc)
 
     def completions(self, source, project_path, file_path, loc):
-        project = self.project_for(project_path)
+        project = self.project_for(project_path, file_path)
         resource = libutils.path_to_resource(project, file_path)
         try:
             proposals = code_assist(project, source, loc,
@@ -82,7 +109,7 @@ class RopeFunctionsMixin(object):
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
-        project = self.project_for(project_path)
+        project = self.project_for(project_path, file_path)
         resource = libutils.path_to_resource(project, file_path)
         try:
             doc = get_doc(project, source, loc,
@@ -92,7 +119,7 @@ class RopeFunctionsMixin(object):
         return doc
 
     def definition_location(self, source, project_path, file_path, loc):
-        project = self.project_for(project_path)
+        project = self.project_for(project_path, file_path)
         resource = libutils.path_to_resource(project, file_path)
         try:
             def_resource, def_lineno = get_definition_location(
@@ -100,6 +127,11 @@ class RopeFunctionsMixin(object):
         except ModuleSyntaxError:
             return None, None
         return def_resource.real_path, def_lineno
+
+    def report_changed(self, project_path, file_path):
+        if project_path != NO_ROOT_PATH:
+            project = self.project_for(project_path, file_path)
+            libutils.report_change(project, file_path, "")
 
     def _proposal_string(self, p):
         if p.parameters:

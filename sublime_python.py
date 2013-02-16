@@ -27,6 +27,7 @@ SERVER_SCRIPT = pipes.quote(os.path.join(
 RETRY_CONNECTION_LIMIT = 5
 HEARTBEAT_FREQUENCY = 9
 DRAW_TYPE = 4 | 32
+NO_ROOT_PATH = -1
 
 
 def get_setting(key, default_value=None):
@@ -139,6 +140,10 @@ def root_folder_for(view):
             if in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
+
+        # no folders found -> single file project
+        if root_path == None:
+            root_path = NO_ROOT_PATH
     return root_path
 
 
@@ -282,6 +287,11 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
                                sublime.INHIBIT_EXPLICIT_COMPLETIONS
             return (proposals, completion_flags)
         return proposals
+
+    def on_post_save_async(self, view, *args):
+        proxy = proxy_for(view)
+        path = view.file_name()
+        proxy.report_changed(root_folder_for(view), path)
 
 class PythonGetDocumentation(sublime_plugin.WindowCommand):
     '''Retrieves the docstring for the identifier under the cursor and
