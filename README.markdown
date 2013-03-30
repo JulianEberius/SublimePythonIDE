@@ -1,6 +1,24 @@
 **SublimePython**
 ===========================
 
+The only necessary (and possible ;-) ) configuration at the moment is setting "python_interpreter" in your projects settings (Project->Edit Project) to use another interpreter than your system interpreter. Example:
+    
+    {
+        "folders": [
+            {
+               "path": "XYZ"
+            },
+            {
+                "path": "ABC"
+            }
+        ],
+        "settings": {
+            "python_interpreter": "/path/to/some/virtualenv/bin/python"
+        }
+    }
+
+This is also the way to select a virtualenv (point it to the interpreter in the venv) and thus get the completions/definitions for you project working.
+
 Copyright (C) 2013 Julian Eberius
 
 License:
