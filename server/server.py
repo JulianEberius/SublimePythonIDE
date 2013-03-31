@@ -87,7 +87,7 @@ class RopeProjectMixin(object):
         and kept open. It is later closed when the project it is
         attached to is deallocated.'''
         tmpfile = tempfile.NamedTemporaryFile()#(delete=False)
-        tmpfile.write(bytes(content, "utf-8"))
+        tmpfile.write(content.encode("utf-8"))
         # self.tmpfile.close()
         return tmpfile
 
