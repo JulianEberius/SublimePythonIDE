@@ -201,7 +201,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         lineno = view.rowcol(view.sel()[0].end())[0] + 1
         if lineno in errors_by_line:
             view.set_status('sublimepython-errors', '; '.join(
-                [m['message'] % m['message_args']
+                [m['message'] % tuple(m['message_args'])
                 for m in errors_by_line[lineno]]
             ))
         else:
