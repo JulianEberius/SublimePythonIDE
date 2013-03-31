@@ -2,6 +2,7 @@ import sys
 import os
 import threading
 import time
+import tempfile
 
 if sys.version_info[0] == 2:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib/python2"))
@@ -31,7 +32,8 @@ def debug(f):
             return f(*args, **kwargs)
         except:
             import traceback
-            traceback.print_exc()
+            with open(os.path.expanduser("~/trace"), "w") as fl:
+                traceback.print_exc(file=fl)
     return wrapped
 
 class RopeProjectMixin(object):
@@ -39,20 +41,28 @@ class RopeProjectMixin(object):
     def __init__(self):
         self.projects = {}
 
-    def project_for(self, project_path, file_path):
+    def project_for(self, project_path, file_path, source=""):
         if project_path == NO_ROOT_PATH:
             if file_path in self.projects:
                 project = self.projects[file_path]
             else:
-                project = self._create_single_file_project(file_path)
-                self.projects[file_path] = project
+                if not file_path:
+                    tmp_file = self._create_temp_file(source)
+                    file_path = tmp_file.name
+                    project = self._create_single_file_project(file_path)
+                    # attach the tmp file to the project so that it lives
+                    # at least as long as the project object
+                    project.tmp_file = tmp_file
+                else:
+                    project = self._create_single_file_project(file_path)
+                    self.projects[file_path] = project
         else:
             if project_path in self.projects:
                 project = self.projects[project_path]
             else:
                 project = self._create_project(project_path)
                 self.projects[project_path] = project
-        return project
+        return project, file_path
 
     def list_projects(self):
         return self.projects.keys()
@@ -72,6 +82,14 @@ class RopeProjectMixin(object):
             ignored_resources=ignored_res, fscommands=None)
         return project
 
+    def _create_temp_file(self, content):
+        '''Creates a temporary file that is return in an opened state,
+        and kept open. It is later closed when the project it is
+        attached to is deallocated.'''
+        tmpfile = tempfile.NamedTemporaryFile()#(delete=False)
+        tmpfile.write(bytes(content, "utf-8"))
+        # self.tmpfile.close()
+        return tmpfile
 
 class RopeFunctionsMixin(object):
     '''Uses Rope to generate completion proposals, depends on
@@ -90,7 +108,7 @@ class RopeFunctionsMixin(object):
         return self.completions(source, project_path, file_path, loc)
 
     def completions(self, source, project_path, file_path, loc):
-        project = self.project_for(project_path, file_path)
+        project, file_path = self.project_for(project_path, file_path, source)
         resource = libutils.path_to_resource(project, file_path)
         try:
             proposals = code_assist(project, source, loc,
@@ -109,7 +127,7 @@ class RopeFunctionsMixin(object):
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
-        project = self.project_for(project_path, file_path)
+        project, file_path = self.project_for(project_path, file_path, source)
         resource = libutils.path_to_resource(project, file_path)
         try:
             doc = get_doc(project, source, loc,
@@ -119,7 +137,7 @@ class RopeFunctionsMixin(object):
         return doc
 
     def definition_location(self, source, project_path, file_path, loc):
-        project = self.project_for(project_path, file_path)
+        project, file_path = self.project_for(project_path, file_path, source)
         resource = libutils.path_to_resource(project, file_path)
         try:
             def_resource, def_lineno = get_definition_location(
@@ -130,7 +148,7 @@ class RopeFunctionsMixin(object):
 
     def report_changed(self, project_path, file_path):
         if project_path != NO_ROOT_PATH:
-            project = self.project_for(project_path, file_path)
+            project, file_path = self.project_for(project_path, file_path)
             libutils.report_change(project, file_path, "")
 
     def _proposal_string(self, p):
@@ -163,7 +181,6 @@ class HeartBeatMixin(object):
     """Waits for heartbeat messages from SublimeText. The main thread
     kills the process if no heartbeat arrived in HEARTBEAT_TIMEOUT seconds."""
     def __init__(self):
-        self.last_heartbeat = None
         self.heartbeat()
 
     def heartbeat(self):
@@ -203,7 +220,7 @@ class XMLRPCServerThread(threading.Thread):
         self.daemon = True
 
     def run(self):
-        self.server = SimpleXMLRPCServer(("localhost", port), allow_none=True)
+        self.server = SimpleXMLRPCServer(("localhost", port), allow_none=True, logRequests=False)
         self.server.register_instance(Server())
         self.server.serve_forever()
 

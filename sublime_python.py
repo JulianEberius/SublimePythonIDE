@@ -30,9 +30,11 @@ DRAW_TYPE = 4 | 32
 NO_ROOT_PATH = -1
 
 
-def get_setting(key, default_value=None):
+def get_setting(key, view=None, default_value=None):
+    if view is None:
+        view = sublime.active_window().active_view()
     try:
-        settings = sublime.active_window().active_view().settings()
+        settings = view.settings()
         if settings.has(key):
             return settings.get(key)
     except:
@@ -66,7 +68,7 @@ class Proxy(object):
                 shell=True)
         print("starting server on port %i with %s" % (self.port, self.python))
         self.proxy = xmlrpc.client.ServerProxy(
-            'http://localhost:%i' % self.port)
+            'http://localhost:%i' %  self.port, allow_none=True)
         self.set_heartbeat_timer()
 
     def set_heartbeat_timer(self):
@@ -102,6 +104,7 @@ class Proxy(object):
                     else:
                         # died, restart and retry
                         self.restart()
+                        time.sleep(0.2)
             return result
         return wrapper
 
@@ -111,7 +114,7 @@ def proxy_for(view):
     requested interpreter'''
     proxy = None
     with PROXY_LOCK:
-        python = get_setting("python_interpreter", "")
+        python = get_setting("python_interpreter", view, "")
         if python == "":
             python = "python"
         if python in PROXIES:
