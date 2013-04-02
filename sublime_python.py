@@ -173,7 +173,7 @@ class PythonTestCommand(sublime_plugin.WindowCommand):
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     def is_python_syntax(self, view):
         syntax = view.settings().get('syntax')
-        return syntax and 'Python' in view.settings().get('syntax')
+        return bool(syntax and ("Python" in syntax))
 
     def on_load_async(self, view):
         '''Check the file syntax on load'''
