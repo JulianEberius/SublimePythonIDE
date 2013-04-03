@@ -127,12 +127,13 @@ class RopeFunctionsMixin(object):
         except Exception:
             import traceback
             traceback.print_exc()
-            return []
+            proposals = []
+        finally:
+            proposals = [
+                (self._proposal_string(p), self._insert_string(p))
+                for p in proposals if p.name != 'self='
+            ]
 
-        proposals = [
-            (self._proposal_string(p), self._insert_string(p))
-            for p in proposals if p.name != 'self='
-        ]
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
