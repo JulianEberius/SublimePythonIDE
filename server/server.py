@@ -236,7 +236,7 @@ class RopeFunctionsMixin(object):
         return result
 
     def _get_resource(self, project_path, file_path, source):
-        """
+        """Get and returns back project and resource objects from Rope library
         """
 
         project, file_path = self.project_for(project_path, file_path, source)
