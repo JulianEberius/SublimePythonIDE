@@ -42,6 +42,7 @@ def get_setting(key, view=None, default_value=None):
     s = sublime.load_settings('SublimePython.sublime-settings')
     return s.get(key, default_value)
 
+
 class Proxy(object):
     '''Abstracts the external Python processes that do the actual
     work. SublimePython just calls local methods on Proxy objects.
@@ -64,11 +65,12 @@ class Proxy(object):
     def restart(self):
         self.port = self.get_free_port()
         self.proc = subprocess.Popen(
-                "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
-                shell=True)
+            "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
+            shell=True
+        )
         print("starting server on port %i with %s" % (self.port, self.python))
         self.proxy = xmlrpc.client.ServerProxy(
-            'http://localhost:%i' %  self.port, allow_none=True)
+            'http://localhost:%i' % self.port, allow_none=True)
         self.set_heartbeat_timer()
 
     def set_heartbeat_timer(self):
@@ -111,6 +113,7 @@ class Proxy(object):
             return result
         return wrapper
 
+
 def proxy_for(view):
     '''retrieve an existing proxy for an external Python process.
     will automatically create a new proxy if non exists for the
@@ -148,7 +151,7 @@ def root_folder_for(view):
                 ROOT_PATHS[file_name] = root_path
 
         # no folders found -> single file project
-        if root_path == None:
+        if root_path is None:
             root_path = NO_ROOT_PATH
     return root_path
 
@@ -164,11 +167,13 @@ class PythonStopServerCommand(sublime_plugin.WindowCommand):
                 proxy.stop()
                 del proxy[python]
 
+
 class PythonTestCommand(sublime_plugin.WindowCommand):
     def run(self, *args):
         view = self.window.active_view()
         proxy = proxy_for(view)
         print("projects:", proxy.list_projects())
+
 
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     def is_python_syntax(self, view):
@@ -209,7 +214,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         if lineno in errors_by_line:
             view.set_status('sublimepython-errors', '; '.join(
                 [m['message'] % tuple(m['message_args'])
-                for m in errors_by_line[lineno]]
+                    for m in errors_by_line[lineno]]
             ))
         else:
             view.erase_status('sublimepython-errors')
@@ -278,6 +283,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                     [view.line(view.text_point(lineno - 1, 0))],
                     'keyword', 'dot', DRAW_TYPE)
 
+
 class PythonCompletionsListener(sublime_plugin.EventListener):
     '''Retrieves completion proposals from external Python
     processes running Rope'''
@@ -290,11 +296,15 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         # t0 = time.time()
         proxy = proxy_for(view)
         proposals = proxy.completions(source, root_folder_for(view), path, loc)
-        # proposals = proxy.profile_completions(source, root_folder_for(view), path, loc)
+        # proposals = (
+        #   proxy.profile_completions(source, root_folder_for(view), path, loc)
+        # )
         # print("+++", time.time() - t0)
         if proposals:
-            completion_flags = sublime.INHIBIT_WORD_COMPLETIONS |\
-                               sublime.INHIBIT_EXPLICIT_COMPLETIONS
+            completion_flags = (
+                sublime.INHIBIT_WORD_COMPLETIONS |
+                sublime.INHIBIT_EXPLICIT_COMPLETIONS
+            )
             return (proposals, completion_flags)
         return proposals
 
@@ -302,6 +312,7 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         proxy = proxy_for(view)
         path = view.file_name()
         proxy.report_changed(root_folder_for(view), path)
+
 
 class PythonGetDocumentation(sublime_plugin.WindowCommand):
     '''Retrieves the docstring for the identifier under the cursor and
@@ -328,6 +339,7 @@ class PythonGetDocumentation(sublime_plugin.WindowCommand):
             "rope_documentation_error",
             "No documentation found for %s" % word
         )
+
         def clear_status_callback():
             view.erase_status("rope_documentation_error")
         sublime.set_timeout_async(clear_status_callback, 5000)
@@ -335,10 +347,10 @@ class PythonGetDocumentation(sublime_plugin.WindowCommand):
     def display_documentation(self, view, doc):
         out_view = view.window().get_output_panel(
             "rope_python_documentation")
-        out_view.run_command("simple_clear_and_insert",
-            {"insert_string": doc})
+        out_view.run_command("simple_clear_and_insert", {"insert_string": doc})
         view.window().run_command(
             "show_panel", {"panel": "output.rope_python_documentation"})
+
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
     def run(self, edit, block=False, **kwargs):
@@ -346,6 +358,7 @@ class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
         r = sublime.Region(0, self.view.size())
         self.view.erase(edit, r)
         self.view.insert(edit, 0, doc)
+
 
 class PythonGotoDefinition(sublime_plugin.WindowCommand):
     '''
@@ -361,9 +374,12 @@ class PythonGotoDefinition(sublime_plugin.WindowCommand):
             offset = view.text_point(row, col - 1)
 
         proxy = proxy_for(view)
-        def_result = proxy.definition_location(source, root_folder_for(view), path, offset)
+        def_result = proxy.definition_location(
+            source, root_folder_for(view), path, offset)
+
         if not def_result:
             return
+
         target_path, target_lineno = def_result
         current_lineno = view.rowcol(view.sel()[0].end())[0] + 1
 
@@ -381,6 +397,7 @@ class PythonGotoDefinition(sublime_plugin.WindowCommand):
 
     def save_pos(self, file_path, lineno):
         GOTO_STACK.append((file_path, lineno))
+
 
 class PythonGoBack(sublime_plugin.WindowCommand):
     def run(self, *args):
