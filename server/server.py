@@ -24,6 +24,7 @@ from rope.contrib.codeassist import (
 )
 from rope.base.exceptions import ModuleSyntaxError
 
+
 # global state of the server process
 last_heartbeat = None
 # constants
@@ -31,19 +32,10 @@ HEARTBEAT_TIMEOUT = 10
 NO_ROOT_PATH = -1
 
 
-def debug(f):
-    def wrapped(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except:
-            import traceback
-            with open(os.path.expanduser("~/trace"), "w") as fl:
-                traceback.print_exc(file=fl)
-    return wrapped
-
-
 class RopeProjectMixin(object):
-    '''Creates and manages Rope projects'''
+    """
+    Creates and manages Rope projects"""
+
     def __init__(self):
         self.projects = {}
 
@@ -88,23 +80,29 @@ class RopeProjectMixin(object):
         return project
 
     def _create_temp_file(self, content):
-        '''Creates a temporary file that is return in an opened state,
+        """
+        Creates a temporary file that is return in an opened state,
         and kept open. It is later closed when the project it is
-        attached to is deallocated.'''
-        tmpfile = tempfile.NamedTemporaryFile()  # (delete=False)
+        attached to is deallocated.
+        """
+
+        tmpfile = tempfile.NamedTemporaryFile()
         tmpfile.write(content.encode("utf-8"))
-        # self.tmpfile.close()
+
         return tmpfile
 
 
 class RopeFunctionsMixin(object):
-    '''Uses Rope to generate completion proposals, depends on
-    RopeProjectMixin'''
+    """Uses Rope to generate completion proposals, depends on RopeProjectMixin
+    """
 
     def profile_completions(self, source, project_path, file_path, loc):
-        '''Only for testing: runs Rope's code completion functionality in the
-        python profiler and saves statistics, then reruns for actual results.
-        '''
+        """
+        Only for testing purposes::
+            runs Rope's code completion functionality in the python profiler
+            and saves statistics, then reruns for actual results
+        """
+
         try:
             import cProfile as profile
         except:
@@ -113,11 +111,23 @@ class RopeFunctionsMixin(object):
         profile.runctx(
             "self.completions(source, project_path, file_path, loc)",
             globals(), locals(), os.path.expanduser("~/SublimePython.stats"))
+
         return self.completions(source, project_path, file_path, loc)
 
     def completions(self, source, project_path, file_path, loc):
-        project, file_path = self.project_for(project_path, file_path, source)
-        resource = libutils.path_to_resource(project, file_path)
+        """
+        Get completions from the underlying Rope library and returns it back
+        to the editor interface
+
+        :param source: the document source
+        :param project_path: the actual project_path
+        :param file_path: the actual file path
+        :param loc: the buffer location
+        :returns: a list of tuples of strings
+        """
+
+        project, resource = self._get_resource(project_path, file_path, source)
+
         try:
             proposals = code_assist(
                 project, source, loc, resource=resource, maxfixes=3)
@@ -137,30 +147,67 @@ class RopeFunctionsMixin(object):
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
-        project, file_path = self.project_for(project_path, file_path, source)
-        resource = libutils.path_to_resource(project, file_path)
+        """
+        Search for documentation about the word in the current location
+
+        :param source: the document source
+        :param project_path: the actual project_path
+        :param file_path: the actual file path
+        :param loc: the buffer location
+        :returns: a string containing the documentation
+        """
+
+        project, resource = self._get_resource(project_path, file_path, source)
+
         try:
             doc = get_doc(project, source, loc, resource=resource, maxfixes=3)
         except ModuleSyntaxError:
             doc = None
+
         return doc
 
     def definition_location(self, source, project_path, file_path, loc):
-        project, file_path = self.project_for(project_path, file_path, source)
-        resource = libutils.path_to_resource(project, file_path)
+        """
+        Get a global definition location and returns it back to the editor
+
+        :param source: the document source
+        :param project_path: the actual project_path
+        :param file_path: the actual file path
+        :param loc: the buffer location
+        :returns: a tuple containing the path and the line number
+        """
+
+        project, resource = self._get_resource(project_path, file_path, source)
+
         try:
             def_resource, def_lineno = get_definition_location(
                 project, source, loc, resource=resource, maxfixes=3)
         except ModuleSyntaxError:
-            return None, None
-        return def_resource.real_path, def_lineno
+            real_path, def_lineno = (None, None)
+        finally:
+            real_path = def_resource.real_path
+
+        return real_path, def_lineno
 
     def report_changed(self, project_path, file_path):
+        """
+        Reports the change of the contents of file_path.
+
+        :param project_path: the actual project path
+        :param file_path: the file path
+        """
+
         if project_path != NO_ROOT_PATH:
             project, file_path = self.project_for(project_path, file_path)
             libutils.report_change(project, file_path, "")
 
     def _proposal_string(self, p):
+        """
+        Build and return a string for the proposals of completions
+
+        :param p: the original proposal structure
+        """
+
         if p.parameters:
             params = [par for par in p.parameters if par != 'self']
             result = '{name}({params})'.format(
@@ -174,6 +221,9 @@ class RopeFunctionsMixin(object):
             result=result, scope=p.scope, type=p.type)
 
     def _insert_string(self, p):
+        """
+        """
+
         if p.parameters:
             params = [par for par in p.parameters if par != 'self']
             param_snippet = ", ".join(
@@ -185,10 +235,20 @@ class RopeFunctionsMixin(object):
 
         return result
 
+    def _get_resource(self, project_path, file_path, source):
+        """Get and returns back project and resource objects from Rope library
+        """
+
+        project, file_path = self.project_for(project_path, file_path, source)
+        return project, libutils.path_to_resource(project, file_path)
+
 
 class HeartBeatMixin(object):
-    """Waits for heartbeat messages from SublimeText. The main thread
-    kills the process if no heartbeat arrived in HEARTBEAT_TIMEOUT seconds."""
+    """
+    Waits for heartbeat messages from SublimeText. The main thread
+    kills the process if no heartbeat arrived in HEARTBEAT_TIMEOUT seconds.
+    """
+
     def __init__(self):
         self.heartbeat()
 
@@ -198,10 +258,13 @@ class HeartBeatMixin(object):
 
 
 class FlakeMixin(object):
-    '''Performs a PyFlakes check on the input code, returns either a
+    """
+    Performs a PyFlakes check on the input code, returns either a
     list of messages or a single syntax error in case of an error while
     parsing the code. The receiver thus has to check for these two
-    cases.'''
+    cases.
+    """
+
     def check_syntax(self, code):
         try:
             tree = parse(code)
@@ -212,9 +275,12 @@ class FlakeMixin(object):
 
 
 class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, FlakeMixin):
-    '''Python's SimpleXMLRPCServer accepts just one call of
+    """
+    Python's SimpleXMLRPCServer accepts just one call of
     register_instance(), so this class just combines the above
-    mixins.'''
+    mixins.
+    """
+
     def __init__(self):
         RopeProjectMixin.__init__(self)
         RopeFunctionsMixin.__init__(self)
@@ -223,9 +289,15 @@ class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, FlakeMixin):
 
 
 class XMLRPCServerThread(threading.Thread):
-    '''Runs a SimpleXMLRPCServer in a new thread, so that the main
+    """
+    Runs a SimpleXMLRPCServer in a new thread, so that the main
     thread can watch for the heartbeats and kill the process if no
-    heartbeat messages arrive in time'''
+    heartbeat messages arrive in time
+
+    :param port: the port where to listen to
+    :type port: int
+    """
+
     def __init__(self, port):
         threading.Thread.__init__(self)
         self.port = port
