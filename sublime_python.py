@@ -91,6 +91,9 @@ class Proxy(object):
         wait if the server process is still runnning, but not responding
         if the server process has died, restart it'''
         def wrapper(*args, **kwargs):
+            if not self.proxy:
+                self.restart()
+                time.sleep(0.2)
             method = getattr(self.proxy, attr)
             result = None
             tries = 0
@@ -173,26 +176,30 @@ class PythonTestCommand(sublime_plugin.WindowCommand):
 
 
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
+    def is_python_syntax(self, view):
+        syntax = view.settings().get('syntax')
+        return bool(syntax and ("Python" in syntax))
+
     def on_load_async(self, view):
         '''Check the file syntax on load'''
-        if not 'Python' in view.settings().get('syntax') or view.is_scratch():
+        if not self.is_python_syntax(view) or view.is_scratch():
             return
         self._check(view)
 
     def on_activated_async(self, view):
         '''Check the file syntax on activated'''
-        if not 'Python' in view.settings().get('syntax') or view.is_scratch():
+        if not self.is_python_syntax(view) or view.is_scratch():
             return
         self._check(view)
 
     def on_post_save_async(self, view):
         '''Check the file syntax on save'''
-        if not 'Python' in view.settings().get('syntax') or view.is_scratch():
+        if not self.is_python_syntax(view) or view.is_scratch():
             return
         self._check(view)
 
     def on_selection_modified_async(self, view):
-        if (not 'Python' in view.settings().get('syntax')
+        if (not self.is_python_syntax(view) 
                 or not get_setting('pyflakes_linting', True)):
             return
 
