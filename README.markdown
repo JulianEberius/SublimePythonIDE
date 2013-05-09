@@ -1,4 +1,4 @@
-**SublimePython**
+**SublimePythonIDE**
 ===========================
 
 This plugin adds Python completions and some IDE-like functions to Sublime Text 3, through the use of the Rope library.
