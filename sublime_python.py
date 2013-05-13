@@ -314,7 +314,7 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         proxy.report_changed(root_folder_for(view), path)
 
 
-class PythonGetDocumentation(sublime_plugin.WindowCommand):
+class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
     '''Retrieves the docstring for the identifier under the cursor and
     displays it in a new panel.'''
     def run(self):
@@ -360,7 +360,7 @@ class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
         self.view.insert(edit, 0, doc)
 
 
-class PythonGotoDefinition(sublime_plugin.WindowCommand):
+class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
     '''
     Shows the definition of the identifier under the cursor, project-wide.
     '''
@@ -377,13 +377,13 @@ class PythonGotoDefinition(sublime_plugin.WindowCommand):
         def_result = proxy.definition_location(
             source, root_folder_for(view), path, offset)
 
-        if not def_result:
+        if not def_result or def_result == [None, None]:
             return
 
         target_path, target_lineno = def_result
         current_lineno = view.rowcol(view.sel()[0].end())[0] + 1
 
-        if path is not None:
+        if None not in (path, target_path, target_lineno):
             self.save_pos(view.file_name(), current_lineno)
             path = target_path + ":" + str(target_lineno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
@@ -399,7 +399,7 @@ class PythonGotoDefinition(sublime_plugin.WindowCommand):
         GOTO_STACK.append((file_path, lineno))
 
 
-class PythonGoBack(sublime_plugin.WindowCommand):
+class PythonGoBackCommand(sublime_plugin.WindowCommand):
     def run(self, *args):
         if GOTO_STACK:
             file_name, lineno = GOTO_STACK.pop()

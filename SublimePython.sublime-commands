@@ -6,5 +6,10 @@
     {
         "caption": "Python: Test",
         "command": "python_test"
+    },
+    {
+        "caption": "Python: Go to definition",
+        "command": "python_goto_definition"
     }
+
 ]
