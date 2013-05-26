@@ -1,5 +1,11 @@
 {
     // leave empty string to use default system interpreter
     "python_interpreter": "",
-    "pyflakes_linting": true
+    "pyflakes_linting": true,
+    // make python_open_documentation command output in a view or in the output
+    // panel if false
+    "open_pydoc_in_view": false,
+    // when a view is created it will be placed in the active view group
+    // if false and only one group exist then a new group will be created
+    "create_view_in_same_group": true
 }

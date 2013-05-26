@@ -165,7 +165,7 @@ class PythonStopServerCommand(sublime_plugin.WindowCommand):
             proxy = PROXIES.get(python, None)
             if proxy:
                 proxy.stop()
-                del proxy[python]
+                del PROXIES[python]
 
 
 class PythonTestCommand(sublime_plugin.WindowCommand):
@@ -199,7 +199,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         self._check(view)
 
     def on_selection_modified_async(self, view):
-        if (not self.is_python_syntax(view) 
+        if (not self.is_python_syntax(view)
                 or not get_setting('pyflakes_linting', True)):
             return
 
@@ -314,6 +314,18 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         proxy.report_changed(root_folder_for(view), path)
 
 
+class PythonPutLastDocstringInView(sublime_plugin.TextCommand):
+    '''
+    Put the last doctsring computed by PythonGetDocumentation in the view.
+    '''
+    last_doc = str()
+    def run(self, edit):
+        self.view.set_read_only(False)
+        self.view.erase(edit, sublime.Region(0, self.view.size()))
+        self.view.insert(edit, 0, self.last_doc)
+        self.view.set_read_only(True)
+
+
 class PythonGetDocumentation(sublime_plugin.WindowCommand):
     '''Retrieves the docstring for the identifier under the cursor and
     displays it in a new panel.'''
@@ -329,7 +341,32 @@ class PythonGetDocumentation(sublime_plugin.WindowCommand):
         proxy = proxy_for(view)
         doc = proxy.documentation(source, root_folder_for(view), path, offset)
         if doc:
-            self.display_documentation(view, doc)
+            s = sublime.load_settings('SublimePython.sublime-settings')
+            open_pydoc_in_view = s.get('open_pydoc_in_view')
+            create_view_in_same_group = s.get('create_view_in_same_group')
+            PythonPutLastDocstringInView.last_doc = doc
+            if open_pydoc_in_view:
+                v = self.find_pydoc_view()
+                if not v:
+                    active_group = self.window.active_group()
+                    if not create_view_in_same_group:
+                        if self.window.num_groups() == 1:
+                            self.window.run_command('new_pane', {'move': False})
+                        if active_group == 0:
+                            self.window.focus_group(1)
+                        else:
+                            self.window.focus_group(active_group-1)
+
+                    self.window.new_file(sublime.TRANSIENT)
+                    v = self.window.active_view()
+                    v.set_name("*pydoc*")
+                    v.set_scratch(True)
+
+                v.run_command('python_put_last_docstring_in_view')
+                self.window.focus_view(v)
+            else:
+                self.display_documentation(view, doc)
+
         else:
             word = view.substr(view.word(offset))
             self.notify_no_documentation(view, word)
@@ -351,6 +388,14 @@ class PythonGetDocumentation(sublime_plugin.WindowCommand):
         view.window().run_command(
             "show_panel", {"panel": "output.rope_python_documentation"})
 
+    def find_pydoc_view(self):
+        '''
+        Return view named *pydoc* if exists, None otherwise.
+        '''
+        for w in self.window.views():
+            if w.name() == "*pydoc*":
+                return w
+        return None
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
     def run(self, edit, block=False, **kwargs):
