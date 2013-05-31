@@ -165,7 +165,7 @@ class PythonStopServerCommand(sublime_plugin.WindowCommand):
             proxy = PROXIES.get(python, None)
             if proxy:
                 proxy.stop()
-                del proxy[python]
+                del PROXIES[python]
 
 
 class PythonTestCommand(sublime_plugin.WindowCommand):
@@ -199,7 +199,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         self._check(view)
 
     def on_selection_modified_async(self, view):
-        if (not self.is_python_syntax(view) 
+        if (not self.is_python_syntax(view)
                 or not get_setting('pyflakes_linting', True)):
             return
 
@@ -329,7 +329,11 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
         proxy = proxy_for(view)
         doc = proxy.documentation(source, root_folder_for(view), path, offset)
         if doc:
-            self.display_documentation(view, doc)
+            open_pydoc_in_view = get_setting("open_pydoc_in_view")
+            if open_pydoc_in_view:
+                self.display_docs_in_view(doc)
+            else:
+                self.display_docs_in_panel(view, doc)
         else:
             word = view.substr(view.word(offset))
             self.notify_no_documentation(view, word)
@@ -344,13 +348,45 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
             view.erase_status("rope_documentation_error")
         sublime.set_timeout_async(clear_status_callback, 5000)
 
-    def display_documentation(self, view, doc):
+    def display_docs_in_panel(self, view, doc):
         out_view = view.window().get_output_panel(
             "rope_python_documentation")
         out_view.run_command("simple_clear_and_insert", {"insert_string": doc})
         view.window().run_command(
             "show_panel", {"panel": "output.rope_python_documentation"})
 
+    def display_docs_in_view(self, doc):
+        create_view_in_same_group = get_setting("create_view_in_same_group")
+
+        v = self.find_pydoc_view()
+        if not v:
+            active_group = self.window.active_group()
+            if not create_view_in_same_group:
+                if self.window.num_groups() == 1:
+                    self.window.run_command('new_pane', {'move': False})
+                if active_group == 0:
+                    self.window.focus_group(1)
+                else:
+                    self.window.focus_group(active_group-1)
+
+            self.window.new_file(sublime.TRANSIENT)
+            v = self.window.active_view()
+            v.set_name("*pydoc*")
+            v.set_scratch(True)
+
+        v.set_read_only(False)
+        v.run_command("simple_clear_and_insert", {"insert_string": doc})
+        v.set_read_only(True)
+        self.window.focus_view(v)
+
+    def find_pydoc_view(self):
+        '''
+        Return view named *pydoc* if exists, None otherwise.
+        '''
+        for w in self.window.views():
+            if w.name() == "*pydoc*":
+                return w
+        return None
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
     def run(self, edit, block=False, **kwargs):
