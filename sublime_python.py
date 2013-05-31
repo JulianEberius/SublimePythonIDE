@@ -199,8 +199,8 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         self._check(view)
 
     def on_selection_modified_async(self, view):
-        if (not self.is_python_syntax(view) 
-                or not get_setting('pyflakes_linting', True)):
+        if (not self.is_python_syntax(view)
+                or not get_setting('pyflakes_linting', view, True)):
             return
 
         vid = view.id()
@@ -220,7 +220,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             view.erase_status('sublimepython-errors')
 
     def _check(self, view):
-        if not get_setting('pyflakes_linting', True):
+        if not get_setting('pyflakes_linting', view, True):
             return
 
         proxy = proxy_for(view)
@@ -254,7 +254,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             view.erase_regions("sublimepython-errors")
 
     def handle_syntax_exception(self, view, e):
-        if not get_setting('pyflakes_linting', True):
+        if not get_setting('pyflakes_linting', view, True):
             return
         if e is None:
             return
