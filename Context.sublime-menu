@@ -1,0 +1,4 @@
+[
+    { "command": "python_get_documentation", "caption": "Get Documentation" },
+    { "command": "python_goto_definition", "caption": "Go to Definition"}
+]
