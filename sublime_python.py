@@ -21,6 +21,9 @@ ERRORS_BY_LINE = {}
 # saves positions on goto_definition
 GOTO_STACK = []
 
+# for debugging the server, start it manually, e.g., "python <path_to_>/server.py <port>" and set the port here
+DEBUG_PORT = None
+
 # Constants
 SERVER_SCRIPT = pipes.quote(os.path.join(
     os.path.dirname(__file__), "server/server.py"))
@@ -42,6 +45,12 @@ def get_setting(key, view=None, default_value=None):
     s = sublime.load_settings('SublimePython.sublime-settings')
     return s.get(key, default_value)
 
+class DebugProcDummy(object):
+    '''used only for debugging, when the server process is started externally'''
+    def poll():
+        return None
+    def terminate():
+        pass
 
 class Proxy(object):
     '''Abstracts the external Python processes that do the actual
@@ -63,12 +72,16 @@ class Proxy(object):
         return port
 
     def restart(self):
-        self.port = self.get_free_port()
-        self.proc = subprocess.Popen(
-            "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
-            shell=True
-        )
-        print("starting server on port %i with %s" % (self.port, self.python))
+        if DEBUG_PORT is None:
+            self.port = self.get_free_port()
+            self.proc = subprocess.Popen(
+                "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
+                shell=True
+            )
+            print("starting server on port %i with %s" % (self.port, self.python))
+        else:
+            self.port = DEBUG_PORT
+            self.proc = DebugProcDummy()
         self.proxy = xmlrpc.client.ServerProxy(
             'http://localhost:%i' % self.port, allow_none=True)
         self.set_heartbeat_timer()
