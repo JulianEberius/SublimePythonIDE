@@ -3,15 +3,19 @@ import os
 import threading
 import time
 import tempfile
+import logging
+
 
 if sys.version_info[0] == 2:
     sys.path.insert(
         0, os.path.join(os.path.dirname(__file__), "../lib/python2"))
     from SimpleXMLRPCServer import SimpleXMLRPCServer
+    from xmlrpclib import Binary
 else:
     sys.path.insert(
         0, os.path.join(os.path.dirname(__file__), "../lib/python3"))
     from xmlrpc.server import SimpleXMLRPCServer
+    from xmlrpc.client import Binary
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
 from pyflakes.checker import Checker
@@ -255,6 +259,7 @@ class HeartBeatMixin(object):
     def heartbeat(self):
         global last_heartbeat
         last_heartbeat = time.time()
+        logging.debug('bumbum %f', last_heartbeat)
 
 
 class FlakeMixin(object):
@@ -274,7 +279,39 @@ class FlakeMixin(object):
             return Checker(tree).messages
 
 
-class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, FlakeMixin):
+class AdvancedFlakeMixin(FlakeMixin):
+
+    class ViewProxyDict(dict):
+        """
+        Acts like a sublime view object for the purposes of accessing settings.
+        """
+        def __init__(self, *args, **kwargs):
+            super(AdvancedFlakeMixin.ViewProxyDict, self).__init__(*args, **kwargs)
+            self.__dict__ = self
+
+            self.proxy_settings = getattr(self, 'proxy_settings', {})
+            self.proxy_settings.update(getattr(self, 'settings', {}))
+            self.settings = lambda: self.proxy_settings
+
+    def check_syntax(self, code, view, filename):
+        from flaker import Linter
+
+        try:
+            view = self.ViewProxyDict(view)
+
+            linter = Linter({'language': 'Python'})
+            codes = linter.built_in_check(view, code, filename)
+
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+        import pickle
+        ret = Binary(pickle.dumps(codes))
+        return ret
+
+
+class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, AdvancedFlakeMixin):
     """
     Python's SimpleXMLRPCServer accepts just one call of
     register_instance(), so this class just combines the above
@@ -285,7 +322,7 @@ class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, FlakeMixin):
         RopeProjectMixin.__init__(self)
         RopeFunctionsMixin.__init__(self)
         HeartBeatMixin.__init__(self)
-        FlakeMixin.__init__(self)
+        AdvancedFlakeMixin.__init__(self)
 
 
 class XMLRPCServerThread(threading.Thread):
