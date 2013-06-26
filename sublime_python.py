@@ -205,7 +205,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
     # "alpha", "bright", "dark", "hard" and "simple"
     MARK_THEMES = ('alpha', 'bright', 'dark', 'hard', 'simple')
     # The path to the built-in gutter mark themes
-    MARK_THEMES_PATH = os.path.join('gutter_mark_themes')
+    MARK_THEMES_PATH = os.path.join("Packages", "SublimePythonIDE", 'gutter_mark_themes')
     # The original theme for anyone interested the previous minimalist approach
     ORIGINAL_MARK_THEME = {
         'violation': 'dot',
@@ -387,7 +387,8 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                 if view.settings().get('sublimelinter_fill_outlines', False):
                     outline_style = 'fill'
 
-                gutter_mark_enabled = True if view.settings().get('sublimelinter_gutter_marks', False) else False
+                #gutter_mark_enabled = True if view.settings().get('sublimelinter_gutter_marks', False) else False
+                gutter_mark_enabled = get_setting('sublimelinter_gutter_marks', view, False)
 
                 gutter_mark_theme = view.settings().get('sublimelinter_gutter_marks_theme', 'simple')
 
@@ -416,9 +417,9 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                             if gutter_mark_theme == 'original':
                                 gutter_mark_image = self.ORIGINAL_MARK_THEME[lint_type]
                             elif gutter_mark_theme in self.MARK_THEMES:
-                                gutter_mark_image = os.path.join(self.MARK_THEMES_PATH, gutter_mark_theme + '-' + lint_type)
+                                gutter_mark_image = os.path.join(self.MARK_THEMES_PATH, "{0}-{1}.png".format(gutter_mark_theme, lint_type))
                             else:
-                                gutter_mark_image = gutter_mark_theme + '-' + lint_type
+                                gutter_mark_image = "{0}-{1}.png".format(gutter_mark_theme, lint_type)
 
                         args.append(gutter_mark_image)
 
@@ -567,6 +568,7 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
             if w.name() == "*pydoc*":
                 return w
         return None
+
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
     def run(self, edit, block=False, **kwargs):
