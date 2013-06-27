@@ -2,16 +2,20 @@ import sys
 import os
 import socket
 import time
-import itertools
 import subprocess
 import pipes
 import threading
 import xmlrpc.client
 import sublime
 import sublime_plugin
+import pickle
+from collections import defaultdict
+from copy import deepcopy
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+
+from flaker import Linter
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
@@ -26,6 +30,7 @@ GOTO_STACK = []
 
 # for debugging the server, start it manually, e.g., "python <path_to_>/server.py <port>" and set the port here
 DEBUG_PORT = None
+
 
 # Constants
 SERVER_SCRIPT = pipes.quote(os.path.join(
@@ -48,12 +53,15 @@ def get_setting(key, view=None, default_value=None):
     s = sublime.load_settings('SublimePython.sublime-settings')
     return s.get(key, default_value)
 
+
 class DebugProcDummy(object):
     '''used only for debugging, when the server process is started externally'''
     def poll(*args):
         return None
+
     def terminate():
         pass
+
 
 class Proxy(object):
     '''Abstracts the external Python processes that do the actual
@@ -192,14 +200,12 @@ class PythonTestCommand(sublime_plugin.WindowCommand):
 
 
 class PythonCheckSyntaxListener(sublime_plugin.EventListener):
-    LINTERS = {}     # mapping of language name to linter module
-    QUEUE = {}       # views waiting to be processed by linter
-    ERRORS = {}      # error messages on given line obtained from linter; they are
-                     # displayed in the status bar when cursor is on line with error
-    VIOLATIONS = {}  # violation messages, they are displayed in the status bar
-    WARNINGS = {}    # warning messages, they are displayed in the status bar
-    UNDERLINES = {}  # underline regions related to each lint message
-    TIMES = {}       # collects how long it took the linting to complete
+    error_underlines = defaultdict(list)
+    violation_underlines = defaultdict(list)
+    warning_underlines = defaultdict(list)
+    error_messages = defaultdict(dict)
+    violation_messages = defaultdict(dict)
+    warning_messages = defaultdict(dict)
 
     # Select one of the predefined gutter mark themes, the options are:
     # "alpha", "bright", "dark", "hard" and "simple"
@@ -213,7 +219,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         'illegal': 'circle'
     }
 
-    def  __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.last_selected_line_number = -1
 
@@ -239,26 +245,11 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             return
         self._check(view)
 
-
-    def on_selection_modified(self, view):
-        if view.is_scratch():
-            return
-        # delay_queue(1000)  # on movement, delay queue (to make movement responsive)
-
-        # We only display errors in the status bar for the last line in the current selection.
-        # If that line number has not changed, there is no point in updating the status bar.
-
-        last_selected_line_number = self.last_selected_lineno(view)
-        if last_selected_line_number != self.last_selected_line_number:
-            self.last_selected_line_number = last_selected_line_number
-            self.update_statusbar(view)
-
     def on_selection_modified_async(self, view):
         if (not self.is_python_syntax(view)
                 or not get_setting('pyflakes_linting', view, True)):
             return
-        self.on_selection_modified(view)
-
+        self.update_statusbar(view)
 
     def _check(self, view):
         if not get_setting('pyflakes_linting', view, True):
@@ -266,95 +257,62 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
 
         filename = view.file_name()
         proxy = proxy_for(view)
-
-        import pickle
-
-        from copy import deepcopy
         proxy_view = deepcopy(view)
-
         proxy_view.proxy_settings = {
-            'pep8': get_setting('pep8', default_value=True),
-            'pep8_ignore': get_setting('pep8_ignore', default_value=[]),
-            'pyflakes_ignore': get_setting('pyflakes_ignore', default_value=[]),
+            'pep8': get_setting('pep8', view, default_value=True),
+            'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),
+            'pyflakes_ignore': get_setting('pyflakes_ignore', view, default_value=[]),
         }
 
         errors = proxy.check_syntax(view.substr(sublime.Region(0, view.size())), proxy_view, filename)
-
         errors = pickle.loads(errors.data)
 
-        from flaker import Linter
         linter = Linter({'language': 'Python'})
 
         vid = view.id()
 
         lines = set()
-        error_underlines = []  # leave this here for compatibility with original plugin
-        error_messages = self.ERRORS[vid] = {}
-        violation_underlines = []
-        violation_messages = self.VIOLATIONS[vid] = {}
-        warning_underlines = []
-        warning_messages = self.WARNINGS[vid] = {}
+        self.error_underlines[vid] = []  # leave this here for compatibility with original plugin
+        self.error_messages[vid] = {}
+        self.violation_underlines[vid] = []
+        self.violation_messages[vid] = {}
+        self.warning_underlines[vid] = []
+        self.warning_messages[vid] = {}
 
         linter.parse_errors(
             view,
             errors,
             lines,
-            error_underlines,
-            violation_underlines,
-            warning_underlines,
-            error_messages,
-            violation_messages,
-            warning_messages,
+            self.error_underlines[vid],
+            self.violation_underlines[vid],
+            self.warning_underlines[vid],
+            self.error_messages[vid],
+            self.violation_messages[vid],
+            self.warning_messages[vid],
         )
 
-        self.UNDERLINES.setdefault(vid, [])
-        self.UNDERLINES[vid] = error_underlines[:]
-        self.UNDERLINES[vid].extend(violation_underlines)
-        self.UNDERLINES[vid].extend(warning_underlines)
-
         # the result can be a list of errors, or single syntax exception
-        self.add_lint_marks(view, lines, error_underlines, violation_underlines, warning_underlines)
-
-
-
+        self.add_lint_marks(view, lines, self.error_underlines[vid], self.violation_underlines[vid], self.warning_underlines[vid])
         self.on_selection_modified_async(view)
-
-    def visualize_errors(self, view, errors):
-        view.erase_regions('sublimepython-errors')
-        errors_by_line = ERRORS_BY_LINE[view.id()]
-
-        outlines = [view.line(view.text_point(lineno - 1, 0))
-                    for lineno in errors_by_line.keys()]
-
-        if outlines:
-            view.add_regions(
-                'sublimepython-errors', outlines, 'keyword', 'dot',
-                DRAW_TYPE)
-        else:
-            view.erase_regions("sublimepython-errors")
-
-    def last_selected_lineno(self, view):
-        viewSel = view.sel()
-        if not viewSel:
-            return None
-        return view.rowcol(viewSel[0].end())[0]
 
     def update_statusbar(self, view):
         vid = view.id()
-        lineno = self.last_selected_lineno(view)
-        errors = []
+        lineno = view.rowcol(view.sel()[0].end())[0] + 0
+        if self.last_selected_line_number == lineno:
+            return
+        self.last_selected_line_number = lineno
+        errors_msg = []
 
         if lineno is not None:
-            if vid in self.ERRORS and lineno in self.ERRORS[vid]:
-                errors.extend(self.ERRORS[vid][lineno])
+            if vid in self.error_messages and lineno in self.error_messages[vid]:
+                errors_msg.extend(self.error_messages[vid][lineno])
+            if vid in self.violation_messages and lineno in self.violation_messages[vid]:
+                errors_msg.extend(self.violation_messages[vid][lineno])
+            if vid in self.warning_messages and lineno in self.warning_messages[vid]:
+                errors_msg.extend(self.warning_messages[vid][lineno])
 
-            if vid in self.VIOLATIONS and lineno in self.VIOLATIONS[vid]:
-                errors.extend(self.VIOLATIONS[vid][lineno])
-
-            if vid in self.WARNINGS and lineno in self.WARNINGS[vid]:
-                errors.extend(self.WARNINGS[vid][lineno])
-        if errors:
-            view.set_status('Linter', '; '.join(errors))
+        if errors_msg:
+            view.set_status('Linter', '; '.join(errors_msg))
         else:
             view.erase_status('Linter')
 
@@ -373,6 +331,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         try:
             vid = view.id()
             self.erase_lint_marks(view)
+
             types = {'warning': warning_underlines, 'violation': violation_underlines, 'illegal': error_underlines}
 
             for type_name, underlines in list(types.items()):
@@ -380,27 +339,23 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                     view.add_regions('lint-underline-' + type_name, underlines, 'sublimelinter.underline.' + type_name, flags=sublime.DRAW_EMPTY_AS_OVERWRITE)
 
             if lines:
-                outline_style = view.settings().get('sublimelinter_mark_style', 'outline')
+                outline_style = get_setting('sublimelinter_mark_style', view, 'outline')
 
                 # This test is for the legacy "fill" setting; it will be removed
                 # in a future version (likely v1.7).
-                if view.settings().get('sublimelinter_fill_outlines', False):
+                if get_setting('sublimelinter_fill_outlines', view, False):
                     outline_style = 'fill'
 
-                #gutter_mark_enabled = True if view.settings().get('sublimelinter_gutter_marks', False) else False
-                gutter_mark_enabled = get_setting('sublimelinter_gutter_marks', view, False)
-
-                gutter_mark_theme = view.settings().get('sublimelinter_gutter_marks_theme', 'simple')
+                #gutter_mark_enabled = True if get_setting('sublimelinter_gutter_marks', False) else False
+                gutter_mark_enabled = get_setting('sublimelinter_gutter_marks', view, True)
+                gutter_mark_theme = get_setting('sublimelinter_gutter_marks_theme', view, 'simple')
 
                 outlines = {'warning': [], 'violation': [], 'illegal': []}
-
-                for line in self.ERRORS[vid]:
+                for line in self.error_messages[vid]:
                     outlines['illegal'].append(view.full_line(view.text_point(line, 0)))
-
-                for line in self.WARNINGS[vid]:
+                for line in self.warning_messages[vid]:
                     outlines['warning'].append(view.full_line(view.text_point(line, 0)))
-
-                for line in self.VIOLATIONS[vid]:
+                for line in self.violation_messages[vid]:
                     outlines['violation'].append(view.full_line(view.text_point(line, 0)))
 
                 for lint_type in outlines:
@@ -410,8 +365,6 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                             outlines[lint_type],
                             'sublimelinter.outline.{0}'.format(lint_type)
                         ]
-
-                        gutter_mark_image = ''
 
                         if gutter_mark_enabled:
                             if gutter_mark_theme == 'original':
