@@ -1,13 +1,21 @@
 {
     // leave empty string to use default system interpreter
     "python_interpreter": "",
-    "pyflakes_linting": true,
+
     // make python_open_documentation command output in a view or in the output
     // panel if false
     "open_pydoc_in_view": false,
+
     // when a view is created it will be placed in the active view group
     // if false and only one group exist then a new group will be created
     "create_view_in_same_group": true,
-    // Settings taken from SublimeLinter
-    "sublimelinter_gutter_marks": false
+
+    // Linter settings
+    "python_linting": true,
+    "python_linter_mark_style": "outline", // "none" or "outline"
+    "python_linter_gutter_marks": true,
+    "python_linter_gutter_marks_theme": "simple", // see folder gutter_mark_themes
+    "pep8": true,
+    "pep8_ignore": [],
+    "pyflakes_ignore": []
 }

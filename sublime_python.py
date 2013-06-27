@@ -337,12 +337,12 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
 
             for type_name, underlines in list(types.items()):
                 if underlines:
-                    view.add_regions('lint-underline-' + type_name, underlines, 'sublimelinter.underline.' + type_name, flags=sublime.DRAW_EMPTY_AS_OVERWRITE)
+                    view.add_regions('lint-underline-' + type_name, underlines, 'python_linter.underline.' + type_name, flags=sublime.DRAW_EMPTY_AS_OVERWRITE)
 
             if lines:
-                outline_style = get_setting('sublimelinter_mark_style', view, 'outline')
-                gutter_mark_enabled = get_setting('sublimelinter_gutter_marks', view, True)
-                gutter_mark_theme = get_setting('sublimelinter_gutter_marks_theme', view, 'simple')
+                outline_style = get_setting('python_linter_mark_style', view, 'outline')
+                gutter_mark_enabled = get_setting('python_linter_gutter_marks', view, True)
+                gutter_mark_theme = get_setting('python_linter_gutter_marks_theme', view, 'simple')
 
                 outlines = {'warning': [], 'violation': [], 'illegal': []}
                 for line in self.error_messages[vid]:
@@ -357,7 +357,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
                         args = [
                             'lint-outlines-{0}'.format(lint_type),
                             outlines[lint_type],
-                            'sublimelinter.outline.{0}'.format(lint_type)
+                            'python_linter.outline.{0}'.format(lint_type)
                         ]
 
                         if gutter_mark_enabled:
