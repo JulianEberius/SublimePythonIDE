@@ -18,11 +18,10 @@ else:
     from xmlrpc.client import Binary
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
-from pyflakes.checker import Checker
+from linter import do_linting
 
 from rope.base.project import Project
 from rope.base import libutils
-from rope.base.ast import parse
 from rope.contrib.codeassist import (
     code_assist, sorted_proposals, get_doc, get_definition_location
 )
@@ -262,46 +261,17 @@ class HeartBeatMixin(object):
         logging.debug('bumbum %f', last_heartbeat)
 
 
-class FlakeMixin(object):
+class LinterMixin(object):
     """
-    Performs a PyFlakes check on the input code, returns either a
+    Performs a PyFlakes and PEP8 check on the input code, returns either a
     list of messages or a single syntax error in case of an error while
     parsing the code. The receiver thus has to check for these two
     cases.
     """
 
-    def check_syntax(self, code):
+    def check_syntax(self, code, lint_settings, filename):
         try:
-            tree = parse(code)
-        except (SyntaxError, IndentationError, ValueError) as e:
-            return {"lineno": e.lineno, "offset": e.offset, "text": e.text}
-        else:
-            return Checker(tree).messages
-
-
-class AdvancedFlakeMixin(FlakeMixin):
-
-    class ViewProxyDict(dict):
-        """
-        Acts like a sublime view object for the purposes of accessing settings.
-        """
-        def __init__(self, *args, **kwargs):
-            super(AdvancedFlakeMixin.ViewProxyDict, self).__init__(*args, **kwargs)
-            self.__dict__ = self
-
-            self.proxy_settings = getattr(self, 'proxy_settings', {})
-            self.proxy_settings.update(getattr(self, 'settings', {}))
-            self.settings = lambda: self.proxy_settings
-
-    def check_syntax(self, code, view, filename):
-        from flaker import Linter
-
-        try:
-            view = self.ViewProxyDict(view)
-
-            linter = Linter({'language': 'Python'})
-            codes = linter.built_in_check(view, code, filename)
-
+            codes = do_linting(lint_settings, code, filename)
         except Exception:
             import traceback
             traceback.print_exc()
@@ -311,7 +281,7 @@ class AdvancedFlakeMixin(FlakeMixin):
         return ret
 
 
-class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, AdvancedFlakeMixin):
+class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, LinterMixin):
     """
     Python's SimpleXMLRPCServer accepts just one call of
     register_instance(), so this class just combines the above
@@ -322,7 +292,7 @@ class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, AdvancedFlake
         RopeProjectMixin.__init__(self)
         RopeFunctionsMixin.__init__(self)
         HeartBeatMixin.__init__(self)
-        AdvancedFlakeMixin.__init__(self)
+        LinterMixin.__init__(self)
 
 
 class XMLRPCServerThread(threading.Thread):

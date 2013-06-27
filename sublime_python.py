@@ -9,13 +9,16 @@ import xmlrpc.client
 import sublime
 import sublime_plugin
 import pickle
+import re
 from collections import defaultdict
-from copy import deepcopy
+from functools import cmp_to_key
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
 
-from flaker import Linter
+# for error type definitions
+import pyflakes
+from linter import Pep8Error, Pep8Warning, OffsetError
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
@@ -257,17 +260,15 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
 
         filename = view.file_name()
         proxy = proxy_for(view)
-        proxy_view = deepcopy(view)
-        proxy_view.proxy_settings = {
+        lint_settings = {
             'pep8': get_setting('pep8', view, default_value=True),
             'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),
             'pyflakes_ignore': get_setting('pyflakes_ignore', view, default_value=[]),
         }
 
-        errors = proxy.check_syntax(view.substr(sublime.Region(0, view.size())), proxy_view, filename)
+        errors = proxy.check_syntax(view.substr(
+            sublime.Region(0, view.size())), lint_settings, filename)
         errors = pickle.loads(errors.data)
-
-        linter = Linter({'language': 'Python'})
 
         vid = view.id()
 
@@ -279,7 +280,7 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
         self.warning_underlines[vid] = []
         self.warning_messages[vid] = {}
 
-        linter.parse_errors(
+        self.parse_errors(
             view,
             errors,
             lines,
@@ -340,13 +341,6 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
 
             if lines:
                 outline_style = get_setting('sublimelinter_mark_style', view, 'outline')
-
-                # This test is for the legacy "fill" setting; it will be removed
-                # in a future version (likely v1.7).
-                if get_setting('sublimelinter_fill_outlines', view, False):
-                    outline_style = 'fill'
-
-                #gutter_mark_enabled = True if get_setting('sublimelinter_gutter_marks', False) else False
                 gutter_mark_enabled = get_setting('sublimelinter_gutter_marks', view, True)
                 gutter_mark_theme = get_setting('sublimelinter_gutter_marks_theme', view, 'simple')
 
@@ -378,8 +372,6 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
 
                         if outline_style == 'none':
                             args.append(sublime.HIDDEN)
-                        elif outline_style == 'fill':
-                            pass  # outlines are filled by default
                         else:
                             args.append(sublime.DRAW_OUTLINED)
                         view.add_regions(*args)
@@ -387,35 +379,127 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             import traceback
             traceback.print_exc()
 
-    def handle_syntax_exception(self, view, e):
-        if not get_setting('pyflakes_linting', view, True):
-            return
-        if e is None:
-            return
-        (lineno, offset, text) = e["lineno"], e["offset"], e["text"]
+    def add_message(self, lineno, lines, message, messages):
+        # Assume lineno is one-based, ST2 wants zero-based line numbers
+        lineno -= 1
+        lines.add(lineno)
+        message = message[0].upper() + message[1:]
 
-        if text is None:
-            print >> sys.stderr, "SublimePython error decoding src file %s" % (
-                self.filename)
+        # Remove trailing period from error message
+        if message[-1] == '.':
+            message = message[:-1]
+
+        if lineno in messages:
+            messages[lineno].append(message)
         else:
-            ERRORS_BY_LINE[view.id()] = {
-                lineno: [{"message": "Syntax error", "message_args": ()}]}
-            line = text.splitlines()[-1]
-            if offset is not None:
-                offset = offset - (len(text) - len(line))
+            messages[lineno] = [message]
 
-            view.erase_regions('sublimepython-errors')
-            if offset is not None:
-                text_point = view.text_point(lineno - 1, 0) + offset
-                view.add_regions(
-                    'sublimepython-errors',
-                    [sublime.Region(text_point, text_point + 1)],
-                    'keyword', 'dot', DRAW_TYPE)
+    def underline_regex(self, view, lineno, regex, lines, underlines, wordmatch=None, linematch=None):
+        # Assume lineno is one-based, ST2 wants zero-based line numbers
+        lineno -= 1
+        lines.add(lineno)
+        offset = 0
+        line = view.full_line(view.text_point(lineno, 0))
+        lineText = view.substr(line)
+
+        if linematch:
+            match = re.match(linematch, lineText)
+
+            if match:
+                lineText = match.group('match')
+                offset = match.start('match')
             else:
-                view.add_regions(
-                    'sublimepython-errors',
-                    [view.line(view.text_point(lineno - 1, 0))],
-                    'keyword', 'dot', DRAW_TYPE)
+                return
+
+        iters = re.finditer(regex, lineText)
+
+        iters = re.finditer(regex, lineText)
+        results = [(result.start('underline'), result.end('underline')) for result in iters if not wordmatch or result.group('underline') == wordmatch]
+
+        # Make the lineno one-based again for underline_range
+        lineno += 1
+
+        for start, end in results:
+            self.underline_range(view, lineno, start + offset, underlines, end - start)
+
+    def underline_range(self, view, lineno, position, underlines, length=1):
+        # Assume lineno is one-based, ST2 wants zero-based line numbers
+        lineno -= 1
+        line = view.full_line(view.text_point(lineno, 0))
+        position += line.begin()
+
+        for i in range(length):
+            underlines.append(sublime.Region(position + i))
+
+    def parse_errors(self, view, errors, lines, errorUnderlines, violationUnderlines, warningUnderlines, errorMessages, violationMessages, warningMessages):
+        def underline_word(lineno, word, underlines):
+            regex = r'((and|or|not|if|elif|while|in)\s+|[+\-*^%%<>=\(\{{])*\s*(?P<underline>[\w\.]*{0}[\w]*)'.format(re.escape(word))
+            self.underline_regex(view, lineno, regex, lines, underlines, word)
+
+        def underline_import(lineno, word, underlines):
+            linematch = '(from\s+[\w_\.]+\s+)?import\s+(?P<match>[^#;]+)'
+            regex = '(^|\s+|,\s*|as\s+)(?P<underline>[\w]*{0}[\w]*)'.format(re.escape(word))
+            self.underline_regex(view, lineno, regex, lines, underlines, word, linematch)
+
+        def underline_for_var(lineno, word, underlines):
+            regex = 'for\s+(?P<underline>[\w]*{0}[\w*])'.format(re.escape(word))
+            self.underline_regex(view, lineno, regex, lines, underlines, word)
+
+        def underline_duplicate_argument(lineno, word, underlines):
+            regex = 'def [\w_]+\(.*?(?P<underline>[\w]*{0}[\w]*)'.format(re.escape(word))
+            self.underline_regex(view, lineno, regex, lines, underlines, word)
+
+        errors.sort(key=cmp_to_key(lambda a, b: a.lineno < b.lineno))
+        ignoreImportStar = view.settings().get('pyflakes_ignore_import_*', True)
+
+        for error in errors:
+            try:
+                error_level = error.level
+            except AttributeError:
+                error_level = 'W'
+            if error_level == 'E':
+                messages = errorMessages
+                underlines = errorUnderlines
+            elif error_level == 'V':
+                messages = violationMessages
+                underlines = violationUnderlines
+            elif error_level == 'W':
+                messages = warningMessages
+                underlines = warningUnderlines
+
+            if isinstance(error, pyflakes.messages.ImportStarUsed) and ignoreImportStar:
+                continue
+
+            self.add_message(error.lineno, lines, str(error), messages)
+
+            if isinstance(error, (Pep8Error, Pep8Warning, OffsetError)):
+                self.underline_range(view, error.lineno, error.offset, underlines)
+
+            elif isinstance(error, (pyflakes.messages.RedefinedWhileUnused,
+                                    pyflakes.messages.UndefinedName,
+                                    pyflakes.messages.UndefinedExport,
+                                    pyflakes.messages.UndefinedLocal,
+                                    pyflakes.messages.Redefined,
+                                    pyflakes.messages.UnusedVariable)):
+                underline_word(error.lineno, error.message_args[0], underlines)
+
+            elif isinstance(error, pyflakes.messages.ImportShadowedByLoopVar):
+                underline_for_var(error.lineno, error.message_args[0], underlines)
+
+            elif isinstance(error, pyflakes.messages.UnusedImport):
+                underline_import(error.lineno, error.message_args[0], underlines)
+
+            elif isinstance(error, pyflakes.messages.ImportStarUsed):
+                underline_import(error.lineno, '*', underlines)
+
+            elif isinstance(error, pyflakes.messages.DuplicateArgument):
+                underline_duplicate_argument(error.lineno, error.message_args[0], underlines)
+
+            elif isinstance(error, pyflakes.messages.LateFutureImport):
+                pass
+
+            else:
+                print('Oops, we missed an error type!', type(error))
 
 
 class PythonCompletionsListener(sublime_plugin.EventListener):
