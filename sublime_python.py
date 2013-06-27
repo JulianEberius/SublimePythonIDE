@@ -57,6 +57,15 @@ def get_setting(key, view=None, default_value=None):
     return s.get(key, default_value)
 
 
+class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
+    '''utility command class for writing into the documentation view'''
+    def run(self, edit, block=False, **kwargs):
+        doc = kwargs['insert_string']
+        r = sublime.Region(0, self.view.size())
+        self.view.erase(edit, r)
+        self.view.insert(edit, 0, doc)
+
+
 class DebugProcDummy(object):
     '''used only for debugging, when the server process is started externally'''
     def poll(*args):
@@ -184,6 +193,7 @@ def root_folder_for(view):
 
 
 class PythonStopServerCommand(sublime_plugin.WindowCommand):
+    '''stops the server this view is connected to. unused'''
     def run(self, *args):
         with PROXY_LOCK:
             python = get_setting("python_interpreter", "")
@@ -193,8 +203,6 @@ class PythonStopServerCommand(sublime_plugin.WindowCommand):
             if proxy:
                 proxy.stop()
                 del PROXIES[python]
-
-
 
 
 class PythonCompletionsListener(sublime_plugin.EventListener):
@@ -302,14 +310,6 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
         return None
 
 
-class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
-    def run(self, edit, block=False, **kwargs):
-        doc = kwargs['insert_string']
-        r = sublime.Region(0, self.view.size())
-        self.view.erase(edit, r)
-        self.view.insert(edit, 0, doc)
-
-
 class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
     '''
     Shows the definition of the identifier under the cursor, project-wide.
@@ -358,6 +358,12 @@ class PythonGoBackCommand(sublime_plugin.WindowCommand):
 
 
 class PythonLintingListener(sublime_plugin.EventListener):
+    '''Copies a lot of logic from SublimeLinter (https://github.com/SublimeLinter/SublimeLinter)
+
+    Specifically, the Python-Linting parts (PEP8, PyFlakes) are included partly here, and
+    partly in server/linter.py.
+
+    Furthermore, the error highlighting code is also adapted from there.'''
     error_underlines = defaultdict(list)
     violation_underlines = defaultdict(list)
     warning_underlines = defaultdict(list)
@@ -405,12 +411,12 @@ class PythonLintingListener(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self, view):
         if (not self.is_python_syntax(view)
-                or not get_setting('pyflakes_linting', view, True)):
+                or not get_setting('python_linting', view, True)):
             return
         self.update_statusbar(view)
 
     def _check(self, view):
-        if not get_setting('pyflakes_linting', view, True):
+        if not get_setting('python_linting', view, True):
             return
 
         filename = view.file_name()

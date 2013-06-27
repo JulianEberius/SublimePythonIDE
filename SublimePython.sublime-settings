@@ -6,9 +6,9 @@
     // panel if false
     "open_pydoc_in_view": false,
 
-    // when a view is created it will be placed in the active view group
+    // when a doc view is created it will be placed in the active view group
     // if false and only one group exist then a new group will be created
-    "create_view_in_same_group": true,
+    "create_view_in_same_group": false,
 
     // Linter settings
     "python_linting": true,
