@@ -326,6 +326,7 @@ class XMLRPCServerThread(threading.Thread):
             ("localhost", port), allow_none=True, logRequests=False)
         if self.debug:
             self.server.register_instance(DebuggingServer())
+            sys.stderr.write("SublimePythonIDE Server is starting in Debug mode\n")
         else:
             self.server.register_instance(Server())
         self.server.serve_forever()

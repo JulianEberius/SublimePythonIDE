@@ -97,6 +97,7 @@ class Proxy(object):
         return port
 
     def restart(self):
+        print("starting SublimePythonIDE server")
         if DEBUG_PORT is None:
             self.port = self.get_free_port()
 
@@ -109,15 +110,17 @@ class Proxy(object):
                 self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port, self.proc.stderr, self.queue)
                 self.stderr_reader.start()
                 sublime.set_timeout_async(self.debug_consume, 1000)
+                print("started server on port %i with %s IN DEBUG MODE" % (self.port, self.python))
             else:
                 self.proc = subprocess.Popen(
                     "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
                     shell=True
                 )
-            print("starting server on port %i with %s" % (self.port, self.python))
+                print("started server on port %i with %s" % (self.port, self.python))
         else:
             self.port = DEBUG_PORT
             self.proc = DebugProcDummy()
+            print("started server on user-defined FIXED port %i with %s" % (self.port, self.python))
         self.proxy = xmlrpc.client.ServerProxy(
             'http://localhost:%i' % self.port, allow_none=True)
         self.set_heartbeat_timer()
