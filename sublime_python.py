@@ -9,6 +9,7 @@ import threading
 import xmlrpc.client
 import sublime
 import sublime_plugin
+from queue import Queue
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
@@ -23,6 +24,7 @@ GOTO_STACK = []
 
 # for debugging the server, start it manually, e.g., "python <path_to_>/server.py <port>" and set the port here
 DEBUG_PORT = None
+SERVER_DEBUGGING = False
 
 # Constants
 SERVER_SCRIPT = pipes.quote(os.path.join(
@@ -52,6 +54,27 @@ class DebugProcDummy(object):
     def terminate():
         pass
 
+class AsynchronousFileReader(threading.Thread):
+    '''
+    Helper class to implement asynchronous reading of a file
+    in a separate thread. Pushes read lines on a queue to
+    be consumed in another thread.
+
+    Used for reading stderr output of the server.
+    '''
+
+    def __init__(self, name, fd, queue):
+        threading.Thread.__init__(self)
+        self.name = name
+        self._fd = fd
+        self._queue = queue
+
+    def run(self):
+        '''The body of the tread: read lines and put them on the queue.'''
+        for line in iter(self._fd.readline, ''):
+            if line:
+                self._queue.put("{0}: {1}".format(self.name, line))
+
 class Proxy(object):
     '''Abstracts the external Python processes that do the actual
     work. SublimePython just calls local methods on Proxy objects.
@@ -62,6 +85,8 @@ class Proxy(object):
         self.proc = None
         self.proxy = None
         self.port = None
+        self.stderr_reader = None
+        self.queue = None
         self.restart()
 
     def get_free_port(self):
@@ -74,10 +99,21 @@ class Proxy(object):
     def restart(self):
         if DEBUG_PORT is None:
             self.port = self.get_free_port()
-            self.proc = subprocess.Popen(
-                "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
-                shell=True
-            )
+
+            if SERVER_DEBUGGING:
+                self.proc = subprocess.Popen(
+                    "%s %s %i 1" % (self.python, SERVER_SCRIPT, self.port), # 1 is for debug == True
+                    shell=True, stderr=subprocess.PIPE
+                )
+                self.queue = Queue()
+                self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port, self.proc.stderr, self.queue)
+                self.stderr_reader.start()
+                sublime.set_timeout_async(self.debug_consume, 1000)
+            else:
+                self.proc = subprocess.Popen(
+                    "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
+                    shell=True
+                )
             print("starting server on port %i with %s" % (self.port, self.python))
         else:
             self.port = DEBUG_PORT
@@ -86,12 +122,25 @@ class Proxy(object):
             'http://localhost:%i' % self.port, allow_none=True)
         self.set_heartbeat_timer()
 
+    def debug_consume(self):
+        '''
+        If SERVER_DEBUGGING is enabled, is called by ST every 1000ms and prints
+        output from server debugging readers.
+        '''
+        # Check the queues if we received some output (until there is nothing more to get).
+        while not self.queue.empty():
+            line = self.queue.get()
+            print(str(line))
+        # Sleep a bit before asking the readers again.
+        sublime.set_timeout_async(self.debug_consume, 1000)
+
     def set_heartbeat_timer(self):
         sublime.set_timeout_async(
             self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
 
     def stop(self):
         self.proxy = None
+        self.queue = Queue()
         self.proc.terminate()
 
     def send_heartbeat(self):
