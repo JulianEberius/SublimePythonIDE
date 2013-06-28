@@ -6,6 +6,7 @@ import itertools
 import subprocess
 import pipes
 import threading
+import shlex
 import xmlrpc.client
 import sublime
 import sublime_plugin
@@ -28,7 +29,8 @@ SERVER_DEBUGGING = False
 
 # Constants
 SERVER_SCRIPT = pipes.quote(os.path.join(
-    os.path.dirname(__file__), "server/server.py"))
+    os.path.dirname(__file__), "server", "server.py"))
+
 RETRY_CONNECTION_LIMIT = 5
 HEARTBEAT_FREQUENCY = 9
 DRAW_TYPE = 4 | 32
@@ -97,25 +99,20 @@ class Proxy(object):
         return port
 
     def restart(self):
-        print("starting SublimePythonIDE server")
         if DEBUG_PORT is None:
             self.port = self.get_free_port()
 
+            proc_args = shlex.split("%s %s %i" % (self.python, SERVER_SCRIPT, self.port))
             if SERVER_DEBUGGING:
-                self.proc = subprocess.Popen(
-                    "%s %s %i 1" % (self.python, SERVER_SCRIPT, self.port), # 1 is for debug == True
-                    shell=True, stderr=subprocess.PIPE
-                )
+                proc_args += " 1"  # 1 is for debug == True
+                self.proc = subprocess.Popen(proc_args, shell=True, stderr=subprocess.PIPE)
                 self.queue = Queue()
                 self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port, self.proc.stderr, self.queue)
                 self.stderr_reader.start()
                 sublime.set_timeout_async(self.debug_consume, 1000)
                 print("started server on port %i with %s IN DEBUG MODE" % (self.port, self.python))
             else:
-                self.proc = subprocess.Popen(
-                    "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
-                    shell=True
-                )
+                self.proc = subprocess.Popen(proc_args, shell=True)
                 print("started server on port %i with %s" % (self.port, self.python))
         else:
             self.port = DEBUG_PORT
