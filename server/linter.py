@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
 ## Taken from SublimeLinter
-
-# base_linter.py - base class for linters
 import sys
 import os
 import os.path
