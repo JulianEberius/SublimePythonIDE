@@ -23,7 +23,7 @@ GOTO_STACK = []
 
 # for debugging the server, start it manually, e.g., "python <path_to_>/server.py <port>" and set the port here
 DEBUG_PORT = None
-SERVER_DEBUGGING = True
+SERVER_DEBUGGING = False
 
 # Constants
 SERVER_SCRIPT = os.path.join(

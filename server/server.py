@@ -6,14 +6,14 @@ import tempfile
 
 if sys.version_info[0] == 2:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "../lib/python2"))
+        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python2"))
     from SimpleXMLRPCServer import SimpleXMLRPCServer
 else:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "../lib/python3"))
+        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python3"))
     from xmlrpc.server import SimpleXMLRPCServer
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 from pyflakes.checker import Checker
 
 from rope.base.project import Project
