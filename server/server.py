@@ -28,7 +28,7 @@ from rope.base.exceptions import ModuleSyntaxError
 # global state of the server process
 last_heartbeat = None
 # constants
-HEARTBEAT_TIMEOUT = 10
+HEARTBEAT_TIMEOUT = 19
 NO_ROOT_PATH = -1
 
 

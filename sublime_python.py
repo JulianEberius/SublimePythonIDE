@@ -4,9 +4,7 @@ import socket
 import time
 import itertools
 import subprocess
-import pipes
 import threading
-import shlex
 import xmlrpc.client
 import sublime
 import sublime_plugin
@@ -25,14 +23,14 @@ GOTO_STACK = []
 
 # for debugging the server, start it manually, e.g., "python <path_to_>/server.py <port>" and set the port here
 DEBUG_PORT = None
-SERVER_DEBUGGING = False
+SERVER_DEBUGGING = True
 
 # Constants
-SERVER_SCRIPT = pipes.quote(os.path.join(
-    os.path.dirname(__file__), "server", "server.py"))
+SERVER_SCRIPT = os.path.join(
+    os.path.dirname(__file__), "server", "server.py")
 
 RETRY_CONNECTION_LIMIT = 5
-HEARTBEAT_FREQUENCY = 9
+HEARTBEAT_INTERVALL = 9
 DRAW_TYPE = 4 | 32
 NO_ROOT_PATH = -1
 
@@ -102,7 +100,7 @@ class Proxy(object):
         if DEBUG_PORT is None:
             self.port = self.get_free_port()
 
-            proc_args = shlex.split("%s %s %i" % (self.python, SERVER_SCRIPT, self.port))
+            proc_args = '"%s" "%s" %i' % (self.python, SERVER_SCRIPT, self.port)
             if SERVER_DEBUGGING:
                 proc_args += " 1"  # 1 is for debug == True
                 self.proc = subprocess.Popen(proc_args, shell=True, stderr=subprocess.PIPE)
@@ -136,7 +134,7 @@ class Proxy(object):
 
     def set_heartbeat_timer(self):
         sublime.set_timeout_async(
-            self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
+            self.send_heartbeat, HEARTBEAT_INTERVALL * 1000)
 
     def stop(self):
         self.proxy = None
