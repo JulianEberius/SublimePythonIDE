@@ -6,7 +6,7 @@ import pickle
 import re
 from collections import defaultdict
 from functools import cmp_to_key
-from sublime_python import proxy_for, get_setting
+from SublimePythonIDE.sublime_python import proxy_for, get_setting
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import pyflakes
