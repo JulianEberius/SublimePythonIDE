@@ -162,6 +162,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
                     view.add_regions('lint-underline-' + type_name, underlines, 'python_linter.underline.' + type_name, flags=sublime.DRAW_EMPTY_AS_OVERWRITE)
 
             if lines:
+                gutter_mark_image = ''
                 outline_style = get_setting('python_linter_mark_style', view, 'outline')
                 gutter_mark_enabled = get_setting('python_linter_gutter_marks', view, True)
                 gutter_mark_theme = get_setting('python_linter_gutter_marks_theme', view, 'simple')
