@@ -1,0 +1,35 @@
+[
+    {
+
+        "id": "preferences",
+        "children":
+        [
+            {
+                "caption": "Package Settings",
+                "mnemonic": "P",
+                "id": "package-settings",
+                "children":
+                [
+                    {
+                        "caption": "SublimePythonIDE",
+                        "children":
+                        [
+                            {
+                                "command": "open_file",
+                                "args": {"file": "${packages}/SublimePythonIDE/SublimePython.sublime-settings"},
+                                "caption": "Settings - Default"
+                            },
+                            { "caption": "-" },
+                            {
+                                "command": "open_file",
+                                "args": {"file": "${packages}/User/SublimePython.sublime-settings"},
+                                "caption": "Settings – User"
+                            },
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+]
