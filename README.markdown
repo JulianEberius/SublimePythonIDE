@@ -7,7 +7,7 @@ This plugin adds Python completions and some IDE-like functions to Sublime Text 
 It is a complete rewrite of SublimeRope for ST2. It should be a lot faster and easier to use than SublimeRope was.
 
 In contrast to SublimeRope, it does use the built in Python only for UI-related functions, the completions and refactorings
-are calculated using the exact same python interpreter you use for your project (e.g. the one in your virtualenv). 
+are calculated using the exact same python interpreter you use for your project (e.g. the one in your virtualenv).
 This eliminates a lot of small and big problems that SublimeRope had, e.g., not recognizing dict comprehensions because Python2.6 is used in ST2, or not recognizing some of your libraries because you did not configure all the paths etc..
 Everything your projects interpreter sees, should be visible to SublimePython -> easier configuration.
 
@@ -17,8 +17,8 @@ I also added a lot caching throughout the underlying Rope library which improved
 Configuration
 -------------
 
-The only necessary (and possible ;-) ) configuration at the moment is setting "python_interpreter" in your projects settings (Project->Edit Project) to use another interpreter than your system interpreter. Example:
-    
+The only necessary configuration at the moment is setting "python_interpreter" in your projects settings (Project->Edit Project) to use another interpreter than your system interpreter. Example:
+
     {
         "folders": [
             {
@@ -34,6 +34,7 @@ The only necessary (and possible ;-) ) configuration at the moment is setting "p
     }
 
 This is also the way to select a virtualenv (point it to the interpreter in the venv) and thus get the completions/definitions for you project working.
+See Packages/SublimePythonIDE/SublimePython.sublime-settings for other options. As with all ST packages, copy this file into your Packages/User folder and editing the copy there.
 
 Copyright (C) 2013 Julian Eberius
 
