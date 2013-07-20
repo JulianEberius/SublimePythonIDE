@@ -189,6 +189,8 @@ class PythonLintingListener(sublime_plugin.EventListener):
                                 gutter_mark_image = os.path.join(self.MARK_THEMES_PATH, "{0}-{1}.png".format(gutter_mark_theme, lint_type))
                             else:
                                 gutter_mark_image = "{0}-{1}.png".format(gutter_mark_theme, lint_type)
+                        else:
+                            gutter_mark_image = None
 
                         args.append(gutter_mark_image)
 
