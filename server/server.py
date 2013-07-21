@@ -1,10 +1,9 @@
-import sys
 import os
-import threading
+import sys
 import time
-import tempfile
 import logging
-
+import tempfile
+import threading
 
 if sys.version_info[0] == 2:
     sys.path.insert(
@@ -20,13 +19,12 @@ else:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
 from linter import do_linting
 
-from rope.base.project import Project
 from rope.base import libutils
+from rope.base.project import Project
+from rope.base.exceptions import ModuleSyntaxError
 from rope.contrib.codeassist import (
     code_assist, sorted_proposals, get_doc, get_definition_location
 )
-from rope.base.exceptions import ModuleSyntaxError
-
 
 # global state of the server process
 last_heartbeat = None
@@ -281,7 +279,8 @@ class LinterMixin(object):
         return ret
 
 
-class Server(RopeProjectMixin, RopeFunctionsMixin, HeartBeatMixin, LinterMixin):
+class Server(RopeProjectMixin, HeartBeatMixin,
+             RopeFunctionsMixin, LinterMixin):
     """
     Python's SimpleXMLRPCServer accepts just one call of
     register_instance(), so this class just combines the above
