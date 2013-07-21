@@ -23,7 +23,8 @@ ERRORS_BY_LINE = {}
 # saves positions on goto_definition
 GOTO_STACK = []
 
-# for debugging the server, start it manually, e.g., "python <path_to_>/server.py <port>" and set the port here
+# for debugging the server, start it manually,
+# e.g., "python <path_to_>/server.py <port>" and set the port here
 DEBUG_PORT = None
 
 
@@ -59,7 +60,8 @@ class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
 
 
 class DebugProcDummy(object):
-    '''used only for debugging, when the server process is started externally'''
+    """Used only for debugging, when the server process is started externally
+    """
     def poll(*args):
         return None
 
@@ -93,7 +95,9 @@ class Proxy(object):
                 "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
                 shell=True
             )
-            print("starting server on port %i with %s" % (self.port, self.python))
+            print(
+                "starting server on port %i with %s" % (self.port, self.python)
+            )
         else:
             self.port = DEBUG_PORT
             self.proc = DebugProcDummy()
