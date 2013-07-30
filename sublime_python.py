@@ -82,12 +82,18 @@ class Proxy(object):
     messages, communicate with them and restart them if necessary.'''
     def __init__(self, python):
         self.python = python
+        if not self.python_exists():
+            print("Could not find python in location ", self.python)
+            raise IOError
         self.proc = None
         self.proxy = None
         self.port = None
         self.stderr_reader = None
         self.queue = None
         self.restart()
+
+    def python_exists(self):
+        return os.path.exists(self.python)
 
     def get_free_port(self):
         s = socket.socket()
@@ -186,8 +192,12 @@ def proxy_for(view):
         if python in PROXIES:
             proxy = PROXIES[python]
         else:
-            proxy = Proxy(python)
-            PROXIES[python] = proxy
+            try:
+                proxy = Proxy(python)
+            except IOError:
+                pass
+            else:
+                PROXIES[python] = proxy
     return proxy
 
 
@@ -205,7 +215,8 @@ def root_folder_for(view):
     if file_name in ROOT_PATHS:
         root_path = ROOT_PATHS[file_name]
     else:
-        for folder in view.window().folders():
+        window = view.window()
+        for folder in window.folders():
             if in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
@@ -232,6 +243,8 @@ class PythonTestCommand(sublime_plugin.WindowCommand):
     def run(self, *args):
         view = self.window.active_view()
         proxy = proxy_for(view)
+        if not proxy:
+            return
         print("projects:", proxy.list_projects())
 
 
@@ -284,6 +297,8 @@ class PythonCheckSyntaxListener(sublime_plugin.EventListener):
             return
 
         proxy = proxy_for(view)
+        if not proxy:
+            return
         check_result = proxy.check_syntax(
             view.substr(sublime.Region(0, view.size())))
         # the result can be a list of errors, or single syntax exception
@@ -355,6 +370,8 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         loc = locations[0]
         # t0 = time.time()
         proxy = proxy_for(view)
+        if not proxy:
+            return []
         proposals = proxy.completions(source, root_folder_for(view), path, loc)
         # proposals = (
         #   proxy.profile_completions(source, root_folder_for(view), path, loc)
@@ -370,6 +387,8 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
 
     def on_post_save_async(self, view, *args):
         proxy = proxy_for(view)
+        if not proxy:
+            return
         path = view.file_name()
         proxy.report_changed(root_folder_for(view), path)
 
@@ -387,6 +406,8 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
             offset = view.text_point(row, col - 1)
 
         proxy = proxy_for(view)
+        if not proxy:
+            return
         doc = proxy.documentation(source, root_folder_for(view), path, offset)
         if doc:
             open_pydoc_in_view = get_setting("open_pydoc_in_view")
@@ -470,6 +491,8 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
             offset = view.text_point(row, col - 1)
 
         proxy = proxy_for(view)
+        if not proxy:
+            return
         def_result = proxy.definition_location(
             source, root_folder_for(view), path, offset)
 
