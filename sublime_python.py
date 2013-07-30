@@ -215,7 +215,8 @@ def root_folder_for(view):
     if file_name in ROOT_PATHS:
         root_path = ROOT_PATHS[file_name]
     else:
-        for folder in view.window().folders():
+        window = view.window()
+        for folder in window.folders():
             if in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
