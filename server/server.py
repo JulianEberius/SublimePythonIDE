@@ -179,13 +179,14 @@ class RopeFunctionsMixin(object):
 
         project, resource = self._get_resource(project_path, file_path, source)
 
+        real_path, def_lineno = (None, None)
         try:
             def_resource, def_lineno = get_definition_location(
                 project, source, loc, resource=resource, maxfixes=3)
+            if def_resource:
+                real_path = def_resource.real_path
         except ModuleSyntaxError:
-            real_path, def_lineno = (None, None)
-        finally:
-            real_path = def_resource.real_path
+            pass
 
         return real_path, def_lineno
 
