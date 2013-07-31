@@ -7,16 +7,16 @@ import threading
 
 if sys.version_info[0] == 2:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "../lib/python2"))
+        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python2"))
     from SimpleXMLRPCServer import SimpleXMLRPCServer
     from xmlrpclib import Binary
 else:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "../lib/python3"))
+        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python3"))
     from xmlrpc.server import SimpleXMLRPCServer
     from xmlrpc.client import Binary
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 from linter import do_linting
 
 from rope.base import libutils
@@ -29,7 +29,7 @@ from rope.contrib.codeassist import (
 # global state of the server process
 last_heartbeat = None
 # constants
-HEARTBEAT_TIMEOUT = 10
+HEARTBEAT_TIMEOUT = 19
 NO_ROOT_PATH = -1
 
 
@@ -180,13 +180,14 @@ class RopeFunctionsMixin(object):
 
         project, resource = self._get_resource(project_path, file_path, source)
 
+        real_path, def_lineno = (None, None)
         try:
             def_resource, def_lineno = get_definition_location(
                 project, source, loc, resource=resource, maxfixes=3)
+            if def_resource:
+                real_path = def_resource.real_path
         except ModuleSyntaxError:
-            real_path, def_lineno = (None, None)
-        finally:
-            real_path = def_resource.real_path
+            pass
 
         return real_path, def_lineno
 
@@ -294,6 +295,25 @@ class Server(RopeProjectMixin, HeartBeatMixin,
         LinterMixin.__init__(self)
 
 
+class DebuggingServer(Server):
+    """
+    Prints calls and exceptions to stderr
+    """
+
+    def __init__(self):
+        Server.__init__(self)
+
+    def _dispatch(self, method, params):
+        try:
+            sys.stderr.write("SublimePythonIDE Server is called: %s\n" % str(method))
+            method = getattr(self, method)
+            return method(*params)
+        except Exception as e:
+            sys.stderr.write("SublimePythonIDE Server Error: %s\n" % str(e))
+            import traceback
+            traceback.print_exc()
+
+
 class XMLRPCServerThread(threading.Thread):
     """
     Runs a SimpleXMLRPCServer in a new thread, so that the main
@@ -304,26 +324,45 @@ class XMLRPCServerThread(threading.Thread):
     :type port: int
     """
 
-    def __init__(self, port):
+    def __init__(self, port, debug):
         threading.Thread.__init__(self)
         self.port = port
         self.daemon = True
+        self.debug = debug
 
     def run(self):
         self.server = SimpleXMLRPCServer(
             ("localhost", port), allow_none=True, logRequests=False)
-        self.server.register_instance(Server())
+
+        # enable debugging?
+        if self.debug:
+            sys.stderr.write("SublimePythonIDE Server is starting in Debug mode\n")
+            self.server.register_instance(DebuggingServer())
+        else:
+            self.server.register_instance(Server())
+
         self.server.serve_forever()
 
 
 if __name__ == '__main__':
-        # single argument to this process should be the port to listen on
-        port = int(sys.argv[1])
-        # the SimpleXMLRPCServer is run in a new thread
-        server_thread = XMLRPCServerThread(port)
-        server_thread.start()
-        # the main thread checks for heartbeat messages
-        while 1:
-            time.sleep(HEARTBEAT_TIMEOUT)
-            if time.time() - last_heartbeat > HEARTBEAT_TIMEOUT:
-                sys.exit()
+        try:
+            # single argument to this process should be the port to listen on
+            port = int(sys.argv[1])
+            # second argument may be "--debug" in which case the server prints to stderr
+            debug = False
+            if len(sys.argv) > 2 and sys.argv[2].strip() == "--debug":
+                debug = True
+
+            # the SimpleXMLRPCServer is run in a new thread
+            server_thread = XMLRPCServerThread(port, debug)
+            server_thread.start()
+
+            # the main thread checks for heartbeat messages
+            while 1:
+                time.sleep(HEARTBEAT_TIMEOUT)
+                if time.time() - last_heartbeat > HEARTBEAT_TIMEOUT:
+                    sys.exit()
+        except Exception as e:
+            sys.stderr.write("SublimePythonIDE Server Error: %s\n" % str(e))
+            import traceback
+            traceback.print_exc()

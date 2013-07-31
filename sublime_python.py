@@ -3,11 +3,13 @@ import os
 import socket
 import time
 import subprocess
-import pipes
 import threading
 import xmlrpc.client
 import sublime
 import sublime_plugin
+from queue import Queue
+
+from SublimePythonIDE.util import AsynchronousFileReader, DebugProcDummy
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
@@ -23,16 +25,17 @@ ERRORS_BY_LINE = {}
 # saves positions on goto_definition
 GOTO_STACK = []
 
-# for debugging the server, start it manually,
-# e.g., "python <path_to_>/server.py <port>" and set the port here
+# debugging, see documentation of Proxy.restart()
 DEBUG_PORT = None
+SERVER_DEBUGGING = False
 
 
 # Constants
-SERVER_SCRIPT = pipes.quote(os.path.join(
-    os.path.dirname(__file__), "server/server.py"))
+SERVER_SCRIPT = os.path.join(
+    os.path.dirname(__file__), "server", "server.py")
+
 RETRY_CONNECTION_LIMIT = 5
-HEARTBEAT_FREQUENCY = 9
+HEARTBEAT_INTERVALL = 9
 DRAW_TYPE = 4 | 32
 NO_ROOT_PATH = -1
 
@@ -50,25 +53,6 @@ def get_setting(key, view=None, default_value=None):
     return s.get(key, default_value)
 
 
-class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
-    '''utility command class for writing into the documentation view'''
-    def run(self, edit, block=False, **kwargs):
-        doc = kwargs['insert_string']
-        r = sublime.Region(0, self.view.size())
-        self.view.erase(edit, r)
-        self.view.insert(edit, 0, doc)
-
-
-class DebugProcDummy(object):
-    """Used only for debugging, when the server process is started externally
-    """
-    def poll(*args):
-        return None
-
-    def terminate():
-        pass
-
-
 class Proxy(object):
     '''Abstracts the external Python processes that do the actual
     work. SublimePython just calls local methods on Proxy objects.
@@ -79,6 +63,8 @@ class Proxy(object):
         self.proc = None
         self.proxy = None
         self.port = None
+        self.stderr_reader = None
+        self.queue = None
         self.restart()
 
     def get_free_port(self):
@@ -89,28 +75,66 @@ class Proxy(object):
         return port
 
     def restart(self):
-        if DEBUG_PORT is None:
-            self.port = self.get_free_port()
-            self.proc = subprocess.Popen(
-                "%s %s %i" % (self.python, SERVER_SCRIPT, self.port),
-                shell=True
-            )
-            print(
-                "starting server on port %i with %s" % (self.port, self.python)
-            )
-        else:
-            self.port = DEBUG_PORT
-            self.proc = DebugProcDummy()
-        self.proxy = xmlrpc.client.ServerProxy(
-            'http://localhost:%i' % self.port, allow_none=True)
-        self.set_heartbeat_timer()
+        ''' (re)starts a Python IDE-server
+        this method is complicated by SublimePythonIDE having two different debug modes,
+            - one in which the server is started manually by the developer, in which case this
+            developer has to set the DEBUG_PORT constant
+            - and one case where the server is started automatically but in a verbose mode,
+            in which it prints to its stderr, which is copied to ST3's console by an
+            AsynchronousFileReader. For this the developer has to set SERVER_DEBUGGING to True
+        '''
+        try:
+            if DEBUG_PORT is not None:
+                # debug mode one
+                self.port = DEBUG_PORT
+                self.proc = DebugProcDummy()
+                print("started server on user-defined FIXED port %i with %s" % (self.port, self.python))
+            elif SERVER_DEBUGGING:
+                # debug mode two
+                self.port = self.get_free_port()
+                proc_args = '"%s" "%s" %i' % (self.python, SERVER_SCRIPT, self.port)
+                proc_args += " --debug"
+                self.proc = subprocess.Popen(proc_args, shell=True, stderr=subprocess.PIPE)
+                self.queue = Queue()
+                self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port, self.proc.stderr, self.queue)
+                self.stderr_reader.start()
+                sublime.set_timeout_async(self.debug_consume, 1000)
+                print("started server on port %i with %s IN DEBUG MODE" % (self.port, self.python))
+            else:
+                # standard run of the server in end-user mode
+                self.port = self.get_free_port()
+                proc_args = '"%s" "%s" %i' % (self.python, SERVER_SCRIPT, self.port)
+                self.proc = subprocess.Popen(proc_args, shell=True)
+                print("started server on port %i with %s" % (self.port, self.python))
+
+            # in any case, we also need a local client object
+            self.proxy = xmlrpc.client.ServerProxy(
+                'http://localhost:%i' % self.port, allow_none=True)
+            self.set_heartbeat_timer()
+        except OSError as e:
+            print("error starting server:", e)
+            raise e
+
+    def debug_consume(self):
+        '''
+        If SERVER_DEBUGGING is enabled, is called by ST every 1000ms and prints
+        output from server debugging readers.
+        '''
+        # Check the queues if we received some output (until there is nothing more to get).
+        while not self.queue.empty():
+            line = self.queue.get
+            ()
+            print(str(line))
+        # Sleep a bit before asking the readers again.
+        sublime.set_timeout_async(self.debug_consume, 1000)
 
     def set_heartbeat_timer(self):
         sublime.set_timeout_async(
-            self.send_heartbeat, HEARTBEAT_FREQUENCY * 1000)
+            self.send_heartbeat, HEARTBEAT_INTERVALL * 1000)
 
     def stop(self):
         self.proxy = None
+        self.queue = Queue()
         self.proc.terminate()
 
     def send_heartbeat(self):
@@ -158,8 +182,12 @@ def proxy_for(view):
         if python in PROXIES:
             proxy = PROXIES[python]
         else:
-            proxy = Proxy(python)
-            PROXIES[python] = proxy
+            try:
+                proxy = Proxy(python)
+            except OSError:
+                pass
+            else:
+                PROXIES[python] = proxy
     return proxy
 
 
@@ -177,7 +205,8 @@ def root_folder_for(view):
     if file_name in ROOT_PATHS:
         root_path = ROOT_PATHS[file_name]
     else:
-        for folder in view.window().folders():
+        window = view.window()
+        for folder in window.folders():
             if in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
@@ -212,6 +241,8 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         loc = locations[0]
         # t0 = time.time()
         proxy = proxy_for(view)
+        if not proxy:
+            return []
         proposals = proxy.completions(source, root_folder_for(view), path, loc)
         # proposals = (
         #   proxy.profile_completions(source, root_folder_for(view), path, loc)
@@ -227,6 +258,8 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
 
     def on_post_save_async(self, view, *args):
         proxy = proxy_for(view)
+        if not proxy:
+            return
         path = view.file_name()
         proxy.report_changed(root_folder_for(view), path)
 
@@ -244,6 +277,8 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
             offset = view.text_point(row, col - 1)
 
         proxy = proxy_for(view)
+        if not proxy:
+            return
         doc = proxy.documentation(source, root_folder_for(view), path, offset)
         if doc:
             open_pydoc_in_view = get_setting("open_pydoc_in_view")
@@ -320,6 +355,8 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
             offset = view.text_point(row, col - 1)
 
         proxy = proxy_for(view)
+        if not proxy:
+            return
         def_result = proxy.definition_location(
             source, root_folder_for(view), path, offset)
 
