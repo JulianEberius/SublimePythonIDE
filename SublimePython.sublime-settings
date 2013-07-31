@@ -1,5 +1,17 @@
 {
     // leave empty string to use default system interpreter
+    // e.g. /usr/local/bin/python
+    // or "C:\\Python27\\python.exe"
+    // if you use virtualenvs, then set the absolute path to the virtualenv's
+    // python in your project settings (Project->Edit Project) as in:
+    //
+    // {
+    //     "folders": ...
+    //     "settings":
+    //     {
+    //         "python_interpreter": "/Users/USER/.virtualenvs/PROJECT/bin/python"
+    //     }
+    // }
     "python_interpreter": "",
 
     // make python_open_documentation command output in a view or in the output

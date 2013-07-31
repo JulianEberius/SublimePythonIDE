@@ -24,6 +24,12 @@ PROXY_LOCK = threading.RLock()
 ERRORS_BY_LINE = {}
 # saves positions on goto_definition
 GOTO_STACK = []
+# saves the path to the systems default python
+SYSTEM_PYTHON = None
+# When not using shell=True, Popen and friends
+# will popup a console window on Windows.
+# Use creationflags to suppress this
+CREATION_FLAGS = 0 if os.name != "nt" else 0x08000000
 
 # debugging, see documentation of Proxy.restart()
 DEBUG_PORT = None
@@ -94,7 +100,7 @@ class Proxy(object):
                 self.port = self.get_free_port()
                 proc_args = '"%s" "%s" %i' % (self.python, SERVER_SCRIPT, self.port)
                 proc_args += " --debug"
-                self.proc = subprocess.Popen(proc_args, shell=True, stderr=subprocess.PIPE)
+                self.proc = subprocess.Popen(proc_args, stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
                 self.queue = Queue()
                 self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port, self.proc.stderr, self.queue)
                 self.stderr_reader.start()
@@ -103,8 +109,9 @@ class Proxy(object):
             else:
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
-                proc_args = '"%s" "%s" %i' % (self.python, SERVER_SCRIPT, self.port)
-                self.proc = subprocess.Popen(proc_args, shell=True)
+                proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
+                print("PROC ARGS:", proc_args)
+                self.proc = subprocess.Popen(proc_args, creationflags=CREATION_FLAGS)
                 print("started server on port %i with %s" % (self.port, self.python))
 
             # in any case, we also need a local client object
@@ -113,6 +120,10 @@ class Proxy(object):
             self.set_heartbeat_timer()
         except OSError as e:
             print("error starting server:", e)
+            print("-----------------------------------------------------------------------------------------------")
+            print("Try to use an absolute path to your projects python interpreter. On Windows try to use forward")
+            print("slashes as in C:/Python27/python.exe or properly escape with double-backslashes""")
+            print("-----------------------------------------------------------------------------------------------")
             raise e
 
     def debug_consume(self):
@@ -170,6 +181,27 @@ class Proxy(object):
         return wrapper
 
 
+def system_python():
+    global SYSTEM_PYTHON
+
+    if not SYSTEM_PYTHON:
+        if os.name == "nt":
+            sys_py = subprocess.check_output(["where", "python"], creationflags=CREATION_FLAGS)
+        else:
+            sys_py = subprocess.check_output(["which", "python"])
+        SYSTEM_PYTHON = sys_py.strip().decode()
+
+        if not os.path.exists(SYSTEM_PYTHON):
+            raise OSError("""
+--------------------------------------------------------------------------------------------------------------
+Could not detect system default python, please set the python_interpreter (see README) using an absolute path.
+--------------------------------------------------------------------------------------------------------------""")
+        else:
+            print("Sucessfully detected system python:", SYSTEM_PYTHON)
+
+    return SYSTEM_PYTHON
+
+
 def proxy_for(view):
     '''retrieve an existing proxy for an external Python process.
     will automatically create a new proxy if non exists for the
@@ -178,7 +210,11 @@ def proxy_for(view):
     with PROXY_LOCK:
         python = get_setting("python_interpreter", view, "")
         if python == "":
-            python = "python"
+            python = system_python()
+        else:
+            python = os.path.abspath(
+                os.path.realpath(os.path.expanduser(python)))
+
         if python in PROXIES:
             proxy = PROXIES[python]
         else:

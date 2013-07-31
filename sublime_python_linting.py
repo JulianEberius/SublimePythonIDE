@@ -47,9 +47,9 @@ class PythonLintingListener(sublime_plugin.EventListener):
     # Select one of the predefined gutter mark themes, the options are:
     # "alpha", "bright", "dark", "hard" and "simple"
     MARK_THEMES = ('alpha', 'bright', 'dark', 'hard', 'simple')
-    # The path to the built-in gutter mark themes
-    MARK_THEMES_PATH = os.path.join(
-        "Packages", "SublimePythonIDE", 'gutter_mark_themes')
+    # The path to the built-in gutter mark themes. this API does not
+    # expect OS-specific paths, but only forward-slashes
+    MARK_THEMES_PATH = "Packages/SublimePythonIDE/gutter_mark_themes"
 
     # The original theme for anyone interested the previous minimalist approach
     ORIGINAL_MARK_THEME = {
@@ -402,10 +402,8 @@ class PythonLintingListener(sublime_plugin.EventListener):
             if theme == 'original':
                 image = self.ORIGINAL_MARK_THEME[lint_type]
             elif theme in self.MARK_THEMES:
-                image = os.path.join(
-                    self.MARK_THEMES_PATH, '{0}-{1}.png'.format(
-                        theme, lint_type
-                    )
-                )
+                # this API does not expect OS-specific paths, but only forward-slashes
+                image = self.MARK_THEMES_PATH + '/' + '{0}-{1}.png'.format(
+                    theme, lint_type)
 
         return image
