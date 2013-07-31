@@ -110,7 +110,6 @@ class Proxy(object):
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
                 proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
-                print("PROC ARGS:", proc_args)
                 self.proc = subprocess.Popen(proc_args, creationflags=CREATION_FLAGS)
                 print("started server on port %i with %s" % (self.port, self.python))
 
