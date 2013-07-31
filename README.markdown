@@ -1,7 +1,7 @@
 **SublimePythonIDE**
 ===========================
 
-*Warning*: The plugin does not seem to work well on Windows at the moment. Sorry, will look into it at some point ...
+*Warning*: The plugin does not seem to work well on Windows at the moment. You might give the "windows" branch a try by cloning it manually.
 
 This plugin adds Python completions and some IDE-like functions to Sublime Text 3, through the use of the Rope library.
 It is a complete rewrite of SublimeRope for ST2. It should be a lot faster and easier to use than SublimeRope was.
