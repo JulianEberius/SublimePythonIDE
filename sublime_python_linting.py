@@ -8,11 +8,12 @@ from functools import cmp_to_key, wraps
 import sublime
 import sublime_plugin
 
-from SublimePythonIDE.sublime_python import proxy_for, get_setting
 
+sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import pyflakes
 from linter import Pep8Error, Pep8Warning, OffsetError
+from sublime_python import proxy_for, get_setting
 
 
 def python_only(func):
@@ -25,6 +26,13 @@ def python_only(func):
             return func(self, view)
 
     return wrapper
+
+
+def mark_themes_path():
+    '''The path to the built-in gutter mark themes. this API does not
+    expect OS-specific paths, but only forward-slashes'''
+    plugin_dir = os.path.basename(os.path.dirname(__file__))
+    return "/".join(["Packages", plugin_dir, "gutter_mark_themes"])
 
 
 class PythonLintingListener(sublime_plugin.EventListener):
@@ -47,9 +55,8 @@ class PythonLintingListener(sublime_plugin.EventListener):
     # Select one of the predefined gutter mark themes, the options are:
     # "alpha", "bright", "dark", "hard" and "simple"
     MARK_THEMES = ('alpha', 'bright', 'dark', 'hard', 'simple')
-    # The path to the built-in gutter mark themes. this API does not
-    # expect OS-specific paths, but only forward-slashes
-    MARK_THEMES_PATH = "Packages/SublimePythonIDE/gutter_mark_themes"
+
+    MARK_THEMES_PATH = mark_themes_path()
 
     # The original theme for anyone interested the previous minimalist approach
     ORIGINAL_MARK_THEME = {

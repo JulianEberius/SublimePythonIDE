@@ -9,10 +9,10 @@ import sublime
 import sublime_plugin
 from queue import Queue
 
-from SublimePythonIDE.util import AsynchronousFileReader, DebugProcDummy
-
+sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+from util import AsynchronousFileReader, DebugProcDummy
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
@@ -232,8 +232,6 @@ def proxy_for(view):
 Could not detect python, please set the python_interpreter (see README) using an absolute path or make sure a
 system python is installed and is reachable on the PATH.
 --------------------------------------------------------------------------------------------------------------""")
-        else:
-            print("Sucessfully detected python:", python)
 
         if python in PROXIES:
             proxy = PROXIES[python]
