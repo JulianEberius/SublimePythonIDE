@@ -109,6 +109,9 @@ class PythonLintingListener(sublime_plugin.EventListener):
 
         filename = view.file_name()
         proxy = proxy_for(view)
+        if not proxy:
+            return
+
         lint_settings = {
             'pep8': get_setting('pep8', view, default_value=True),
             'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),

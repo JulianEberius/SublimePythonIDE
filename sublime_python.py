@@ -113,6 +113,14 @@ class Proxy(object):
                 self.proc = subprocess.Popen(proc_args, creationflags=CREATION_FLAGS)
                 print("started server on port %i with %s" % (self.port, self.python))
 
+            # wait 100 ms to make sure python proc is still running
+            for i in range(10):
+                time.sleep(0.01)
+                if self.proc.poll():
+                    if SERVER_DEBUGGING:
+                        print(sys.exc_info())
+                    raise OSError(None, "Python interpretor crashed (using path %s)" % self.python)
+
             # in any case, we also need a local client object
             self.proxy = xmlrpc.client.ServerProxy(
                 'http://localhost:%i' % self.port, allow_none=True)
@@ -132,8 +140,7 @@ class Proxy(object):
         '''
         # Check the queues if we received some output (until there is nothing more to get).
         while not self.queue.empty():
-            line = self.queue.get
-            ()
+            line = self.queue.get()
             print(str(line))
         # Sleep a bit before asking the readers again.
         sublime.set_timeout_async(self.debug_consume, 1000)
@@ -186,17 +193,10 @@ def system_python():
     if not SYSTEM_PYTHON:
         if os.name == "nt":
             sys_py = subprocess.check_output(["where", "python"], creationflags=CREATION_FLAGS)
+            sys_py = sys_py.split()[0]  # use first result where many might return
         else:
             sys_py = subprocess.check_output(["which", "python"])
         SYSTEM_PYTHON = sys_py.strip().decode()
-
-        if not os.path.exists(SYSTEM_PYTHON):
-            raise OSError("""
---------------------------------------------------------------------------------------------------------------
-Could not detect system default python, please set the python_interpreter (see README) using an absolute path.
---------------------------------------------------------------------------------------------------------------""")
-        else:
-            print("Sucessfully detected system python:", SYSTEM_PYTHON)
 
     return SYSTEM_PYTHON
 
@@ -213,6 +213,15 @@ def proxy_for(view):
         else:
             python = os.path.abspath(
                 os.path.realpath(os.path.expanduser(python)))
+
+        if not os.path.exists(python):
+            raise OSError("""
+--------------------------------------------------------------------------------------------------------------
+Could not detect python, please set the python_interpreter (see README) using an absolute path or make sure a
+system python is installed and is reachable on the PATH.
+--------------------------------------------------------------------------------------------------------------""")
+        else:
+            print("Sucessfully detected python:", python)
 
         if python in PROXIES:
             proxy = PROXIES[python]
