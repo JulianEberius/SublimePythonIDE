@@ -98,11 +98,12 @@ class Proxy(object):
             elif SERVER_DEBUGGING:
                 # debug mode two
                 self.port = self.get_free_port()
-                proc_args = '"%s" "%s" %i' % (self.python, SERVER_SCRIPT, self.port)
-                proc_args += " --debug"
-                self.proc = subprocess.Popen(proc_args, stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
+                proc_args = [self.python, SERVER_SCRIPT, str(self.port), " --debug"]
+                self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
+                                             stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
                 self.queue = Queue()
-                self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port, self.proc.stderr, self.queue)
+                self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port,
+                                                            self.proc.stderr, self.queue)
                 self.stderr_reader.start()
                 sublime.set_timeout_async(self.debug_consume, 1000)
                 print("started server on port %i with %s IN DEBUG MODE" % (self.port, self.python))
@@ -110,7 +111,9 @@ class Proxy(object):
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
                 proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
-                self.proc = subprocess.Popen(proc_args, creationflags=CREATION_FLAGS)
+                print("proc_args:", proc_args)
+                self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
+                                             creationflags=CREATION_FLAGS)
                 print("started server on port %i with %s" % (self.port, self.python))
 
             # wait 100 ms to make sure python proc is still running
@@ -190,12 +193,21 @@ class Proxy(object):
 def system_python():
     global SYSTEM_PYTHON
 
-    if not SYSTEM_PYTHON:
-        if os.name == "nt":
-            sys_py = subprocess.check_output(["where", "python"], creationflags=CREATION_FLAGS)
-            sys_py = sys_py.split()[0]  # use first result where many might return
-        else:
-            sys_py = subprocess.check_output(["which", "python"])
+    if SYSTEM_PYTHON is None:
+        try:
+            if os.name == "nt":
+                sys_py = subprocess.check_output(["where", "python"], creationflags=CREATION_FLAGS)
+                sys_py = sys_py.split()[0]  # use first result where many might return
+            else:
+                sys_py = subprocess.check_output(["which", "python"])
+        except OSError:
+            # some systems (e.g. Windows XP) do not support where/which
+            try:
+                sys_py = subprocess.check_output('python -c "import sys; print sys.executable"',
+                                                 creationflags=CREATION_FLAGS, shell=True)
+            except OSError:
+                # now we give up
+                sys_py = ""
         SYSTEM_PYTHON = sys_py.strip().decode()
 
     return SYSTEM_PYTHON
