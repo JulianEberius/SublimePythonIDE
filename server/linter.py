@@ -20,13 +20,12 @@ class PythonLintError(pyflakes.messages.Message):
 
     def __init__(
         self, filename, loc, level, message,
-            message_args, offset=None, text=None):
+            message_args, offset=0, text=None):
         super(PythonLintError, self).__init__(filename, loc)
         self.level = level
         self.message = message
         self.message_args = message_args
-        if offset is not None:
-            self.offset = offset
+        self.offset = offset
         if text is not None:
             self.text = text
 
@@ -100,7 +99,7 @@ def pyflakes_check(code, filename, ignore=None):
                 error = PythonError(filename, lineno, msg)
         return [error]
     except ValueError as e:
-        return [PythonError(filename, 0, e.args[0])]
+        return [PythonError(filename, 1, e.args[0])]
     else:
         # Okay, it's syntactically valid.  Now check it.
         w = pyflakes.Checker(tree, filename, builtins=ignore)

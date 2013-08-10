@@ -12,7 +12,7 @@ import sublime_plugin
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import pyflakes
-from linter import Pep8Error, Pep8Warning, OffsetError
+from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
 from sublime_python import proxy_for, get_setting
 
 
@@ -324,7 +324,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
                 continue
 
             self.add_message(error.lineno, lines, str(error), messages)
-            if isinstance(error, (Pep8Error, Pep8Warning, OffsetError)):
+            if isinstance(error, (Pep8Error, Pep8Warning, OffsetError, PythonLintError)):
                 self.underline_range(
                     view, error.lineno, error.offset, underlines
                 )
