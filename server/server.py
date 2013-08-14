@@ -39,22 +39,45 @@ class RopeProjectMixin(object):
 
     def __init__(self):
         self.projects = {}
+        self.buffer_tmpfile_map = {}
+        self.tempfiles = []
+
+    def __del__(self):
+        '''Cleanup temporary files when server is deallocated. Although
+        Python destructors are not guaranteed to be run it is still ok to
+        do cleanup here, as a tempfile surviving the server in TEMPDIR
+        is not too big of a problem.'''
+        for tfn in self.tempfiles:
+            os.unlink(tfn)
 
     def project_for(self, project_path, file_path, source=""):
-        if project_path == NO_ROOT_PATH:
+        # scratch buffer case: create temp file and proj for buffer and cache it
+        if file_path.startswith("BUFFER:"):
+            if file_path in self.projects:
+                project = self.projects[file_path]
+                file_path = self.buffer_tmpfile_map[file_path]
+            else:
+                original_file_path = file_path
+                file_path = self._create_temp_file(source)
+                project = self._create_single_file_project(file_path)
+                self.projects[original_file_path] = project
+                self.buffer_tmpfile_map[original_file_path] = file_path
+
+        # single file case (or scratch buffer with client not sending buffer_id)
+        # create temp file and proj, and buffer if file_name given
+        elif project_path == NO_ROOT_PATH:
             if file_path in self.projects:
                 project = self.projects[file_path]
             else:
                 if not file_path:
-                    tmp_file = self._create_temp_file(source)
-                    file_path = tmp_file.name
+                    # this path is deprecated and should not be used anymore
+                    file_path = self._create_temp_file(source)
                     project = self._create_single_file_project(file_path)
-                    # attach the tmp file to the project so that it lives
-                    # at least as long as the project object
-                    project.tmp_file = tmp_file
                 else:
                     project = self._create_single_file_project(file_path)
                     self.projects[file_path] = project
+
+        # "usual" case: a real file with a project directory is given
         else:
             if project_path in self.projects:
                 project = self.projects[project_path]
@@ -82,15 +105,19 @@ class RopeProjectMixin(object):
 
     def _create_temp_file(self, content):
         """
-        Creates a temporary file that is return in an opened state,
-        and kept open. It is later closed when the project it is
-        attached to is deallocated.
+        Creates a temporary named file for use by Rope. It expects to
+        be able to read files from disk in some places, so there is no
+        easy way around creating these files. We try to delete those
+        files in the servers destructor (see __del__).
         """
-
-        tmpfile = tempfile.NamedTemporaryFile()
+        tmpfile = tempfile.NamedTemporaryFile(delete=False)
         tmpfile.write(content.encode("utf-8"))
 
-        return tmpfile
+        tf_path = tmpfile.name
+        self.tempfiles.append(tf_path)
+
+        tmpfile.close()
+        return tf_path
 
 
 class RopeFunctionsMixin(object):
@@ -238,7 +265,7 @@ class RopeFunctionsMixin(object):
         return result
 
     def _get_resource(self, project_path, file_path, source):
-        """Get and returns back project and resource objects from Rope library
+        """Get and returns project and resource objects from Rope library
         """
 
         project, file_path = self.project_for(project_path, file_path, source)
@@ -269,11 +296,13 @@ class LinterMixin(object):
     """
 
     def check_syntax(self, code, lint_settings, filename):
+        '''The linting mixin does not use the project_for machinery,
+        but uses the linters directy.'''
         try:
             codes = do_linting(lint_settings, code, filename)
         except Exception:
             import traceback
-            traceback.print_exc()
+            sys.stderr.write(traceback.format_exc())
 
         import pickle
         ret = Binary(pickle.dumps(codes))
