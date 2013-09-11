@@ -106,7 +106,7 @@ def pyflakes_check(code, filename, ignore=None):
         return w.messages
 
 
-def pep8_check(code, filename, ignore=None):
+def pep8_check(code, filename, ignore=None, max_line_length=pep8.MAX_LINE_LENGTH):
     messages = []
     _lines = code.split('\n')
 
@@ -147,7 +147,7 @@ def pep8_check(code, filename, ignore=None):
 
         options = pep8.StyleGuide(
             reporter=SublimeLinterReport, ignore=_ignore).options
-        options.max_line_length = pep8.MAX_LINE_LENGTH
+        options.max_line_length = max_line_length
 
         good_lines = [l + '\n' for l in _lines]
         good_lines[-1] = good_lines[-1].rstrip('\n')
@@ -167,8 +167,13 @@ def do_linting(lint_settings, code, filename):
     errors = []
 
     if lint_settings.get("pep8", True):
+        params = {
+            'ignore': lint_settings.get('pep8_ignore', []),
+            'max_line_length': lint_settings.get(
+                'pep8_max_line_length', None) or pep8.MAX_LINE_LENGTH,
+        }
         errors.extend(pep8_check(
-            code, filename, ignore=lint_settings.get('pep8_ignore', []))
+            code, filename, **params)
         )
 
     pyflakes_ignore = lint_settings.get('pyflakes_ignore', None)

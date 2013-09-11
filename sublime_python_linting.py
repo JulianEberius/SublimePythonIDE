@@ -122,6 +122,8 @@ class PythonLintingListener(sublime_plugin.EventListener):
         lint_settings = {
             'pep8': get_setting('pep8', view, default_value=True),
             'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),
+            'pep8_max_line_length': get_setting(
+                'pep8_max_line_length', view, default_value=None),
             'pyflakes_ignore': get_setting(
                 'pyflakes_ignore', view, default_value=[]),
         }

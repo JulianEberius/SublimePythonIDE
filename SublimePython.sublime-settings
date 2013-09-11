@@ -29,5 +29,6 @@
     "python_linter_gutter_marks_theme": "simple", // see folder gutter_mark_themes
     "pep8": true,
     "pep8_ignore": [],
+    "pep8_max_line_length": 80,
     "pyflakes_ignore": []
 }
