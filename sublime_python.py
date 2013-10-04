@@ -249,7 +249,13 @@ def root_folder_for(view):
     '''returns the folder open in ST which contains
     the file open in this view. Used to determine the
     rope project directory (assumes directories open in
-    ST == project directory)'''
+    ST == project directory)
+
+    In addition to open directories in project, the
+    lookup uses directory set in setting "src_root" as
+    the preferred root (in cases project directory is
+    outside of root python package).
+    '''
     def in_directory(file_path, directory):
         directory = os.path.realpath(directory)
         file_path = os.path.realpath(file_path)
@@ -260,14 +266,17 @@ def root_folder_for(view):
         root_path = ROOT_PATHS[file_name]
     else:
         window = view.window()
-        for folder in window.folders():
-            if in_directory(file_name, folder):
+        for folder in [get_setting(
+                "src_root", view, None)] + window.folders():
+            if folder and in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
+                break  # use first dir found
 
         # no folders found -> single file project
         if root_path is None:
             root_path = NO_ROOT_PATH
+
     return root_path
 
 
