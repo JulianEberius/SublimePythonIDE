@@ -31,6 +31,23 @@ The only necessary configuration at the moment is setting "python_interpreter" i
     }
 
 This is also the way to select a virtualenv (point it to the interpreter in the venv) and thus get the completions/definitions for you project working.
+
+SublimePythonIDE will also look up imports relative to the project root directory (the top directory of your project).
+
+In cases where the project directory is outside of your root python module, you may optionally set a custom source root directory in the project settings:
+
+    {
+        "folders": [
+            {
+               "path": "XYZ"
+            },
+        ],
+        "settings": {
+            "src_root": "XYZ/THE_ACTUAL_SRC"
+            "python_interpreter": "/path/to/some/virtualenv/bin/python",
+        }
+    }
+
 See Packages/SublimePythonIDE/SublimePython.sublime-settings for other options. As with all ST packages, copy this file into your Packages/User folder and editing the copy there.
 
 Copyright (C) 2013 Julian Eberius
