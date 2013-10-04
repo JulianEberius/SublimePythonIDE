@@ -215,20 +215,35 @@ def system_python():
 
 
 def project_venv_python(view):
-    venv_dir = get_setting("virtualenv_dir_name", view, DEFAULT_VENV_DIR_NAME)
-    project_dir = root_folder_for(view)
-    python = ""
-    try:
-        venv_path = os.path.join(project_dir, venv_dir)
-        if os.name == "nt":
-            python = os.path.join(venv_path, "Scripts", "python.exe")
-        else:
-            python = os.path.join(venv_path, "bin", "python")
-    except: pass
+    """
+    Attempt to "guess" the virtualenv path location either in the
+    project dir or in WORKON_HOME (for virtualenvwrapper users).
 
-    if not os.path.exists(python):
-        return ""
-    return python
+    If such a path is found, and a python binary exists, returns it,
+    otherwise returns None.
+    """
+    dir_name = get_setting("virtualenv_dir_name", view, DEFAULT_VENV_DIR_NAME)
+    project_dir = root_folder_for(view)
+
+    venv_path = os.path.join(project_dir, dir_name)
+    if not os.path.exists(venv_path):
+        # virtualenvwrapper: attempt to guess virtualenv dir by name
+        workon_dir = get_setting("workon_home", view, os.environ.get(
+            "WORKON_HOME", None))
+        if workon_dir:
+            venv_path = project_dir.split(os.sep)[-1]
+            if not os.path.exists(venv_path):
+                return None  # no venv path found: abort
+        else:
+            return None  # no venv path found: abort
+
+    if os.name == "nt":
+        python = os.path.join(venv_path, "Scripts", "python.exe")
+    else:
+        python = os.path.join(venv_path, "bin", "python")
+
+    if os.path.exists(python):
+        return python
 
 
 def proxy_for(view):
