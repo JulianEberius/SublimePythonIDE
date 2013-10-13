@@ -268,7 +268,10 @@ def root_folder_for(view):
         window = view.window()
         for folder in [get_setting(
                 "src_root", view, None)] + window.folders():
-            if folder and in_directory(file_name, folder):
+            if not folder:
+                continue
+            folder = os.path.expanduser(folder)
+            if in_directory(file_name, folder):
                 root_path = folder
                 ROOT_PATHS[file_name] = root_path
                 break  # use first dir found
