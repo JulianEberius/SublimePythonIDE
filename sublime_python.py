@@ -224,6 +224,8 @@ def project_venv_python(view):
     """
     dir_name = get_setting("virtualenv_dir_name", view, DEFAULT_VENV_DIR_NAME)
     project_dir = root_folder_for(view)
+    if project_dir == NO_ROOT_PATH:
+        return None
 
     venv_path = os.path.join(project_dir, dir_name)
     if not os.path.exists(venv_path):
