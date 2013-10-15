@@ -44,6 +44,7 @@ RETRY_CONNECTION_LIMIT = 5
 HEARTBEAT_INTERVALL = 9
 DRAW_TYPE = 4 | 32
 NO_ROOT_PATH = -1
+DEFAULT_VENV_DIR_NAME = "venv"
 
 
 def get_setting(key, view=None, default_value=None):
@@ -213,6 +214,40 @@ def system_python():
     return SYSTEM_PYTHON
 
 
+def project_venv_python(view):
+    """
+    Attempt to "guess" the virtualenv path location either in the
+    project dir or in WORKON_HOME (for virtualenvwrapper users).
+
+    If such a path is found, and a python binary exists, returns it,
+    otherwise returns None.
+    """
+    dir_name = get_setting("virtualenv_dir_name", view, DEFAULT_VENV_DIR_NAME)
+    project_dir = root_folder_for(view)
+    if project_dir == NO_ROOT_PATH:
+        return None
+
+    venv_path = os.path.join(project_dir, dir_name)
+    if not os.path.exists(venv_path):
+        # virtualenvwrapper: attempt to guess virtualenv dir by name
+        workon_dir = get_setting("workon_home", view, os.environ.get(
+            "WORKON_HOME", None))
+        if workon_dir:
+            venv_path = project_dir.split(os.sep)[-1]
+            if not os.path.exists(venv_path):
+                return None  # no venv path found: abort
+        else:
+            return None  # no venv path found: abort
+
+    if os.name == "nt":
+        python = os.path.join(venv_path, "Scripts", "python.exe")
+    else:
+        python = os.path.join(venv_path, "bin", "python")
+
+    if os.path.exists(python):
+        return python
+
+
 def proxy_for(view):
     '''retrieve an existing proxy for an external Python process.
     will automatically create a new proxy if non exists for the
@@ -221,7 +256,7 @@ def proxy_for(view):
     with PROXY_LOCK:
         python = get_setting("python_interpreter", view, "")
         if python == "":
-            python = system_python()
+            python = project_venv_python(view) or system_python()
         else:
             python = os.path.abspath(
                 os.path.realpath(os.path.expanduser(python)))
