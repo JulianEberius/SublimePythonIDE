@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import pyflakes
 from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
-from sublime_python import proxy_for, get_setting
+from sublime_python import proxy_for, get_setting, file_or_buffer_name
 
 
 def python_only(func):
@@ -114,7 +114,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
         if not get_setting('python_linting', view, True):
             return
 
-        filename = view.file_name()
+        filename = file_or_buffer_name(view)
         proxy = proxy_for(view)
         if not proxy:
             return

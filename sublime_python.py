@@ -60,6 +60,14 @@ def get_setting(key, view=None, default_value=None):
     return s.get(key, default_value)
 
 
+def file_or_buffer_name(view):
+    filename = view.file_name()
+    if filename:
+        return filename
+    else:
+        return "BUFFER:%i" % view.buffer_id()
+
+
 class Proxy(object):
     '''Abstracts the external Python processes that do the actual
     work. SublimePython just calls local methods on Proxy objects.
@@ -112,7 +120,6 @@ class Proxy(object):
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
                 proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
-                print("proc_args:", proc_args)
                 self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
                                              creationflags=CREATION_FLAGS)
                 print("started server on port %i with %s" % (self.port, self.python))
@@ -295,7 +302,7 @@ def root_folder_for(view):
         directory = os.path.realpath(directory)
         file_path = os.path.realpath(file_path)
         return os.path.commonprefix([file_path, directory]) == directory
-    file_name = view.file_name()
+    file_name = file_or_buffer_name(view)
     root_path = None
     if file_name in ROOT_PATHS:
         root_path = ROOT_PATHS[file_name]
@@ -337,7 +344,7 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
     def on_query_completions(self, view, prefix, locations):
         if not view.match_selector(locations[0], 'source.python'):
             return []
-        path = view.file_name()
+        path = file_or_buffer_name(view)
         source = view.substr(sublime.Region(0, view.size()))
         loc = locations[0]
         # t0 = time.time()
@@ -361,7 +368,7 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
         proxy = proxy_for(view)
         if not proxy:
             return
-        path = view.file_name()
+        path = file_or_buffer_name(view)
         proxy.report_changed(root_folder_for(view), path)
 
 
@@ -372,7 +379,7 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
         view = self.window.active_view()
         row, col = view.rowcol(view.sel()[0].a)
         offset = view.text_point(row, col)
-        path = view.file_name()
+        path = file_or_buffer_name(view)
         source = view.substr(sublime.Region(0, view.size()))
         if view.substr(offset) in [u'(', u')']:
             offset = view.text_point(row, col - 1)
@@ -450,7 +457,7 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
         view = self.window.active_view()
         row, col = view.rowcol(view.sel()[0].a)
         offset = view.text_point(row, col)
-        path = view.file_name()
+        path = file_or_buffer_name(view)
         source = view.substr(sublime.Region(0, view.size()))
         if view.substr(offset) in [u'(', u')']:
             offset = view.text_point(row, col - 1)
@@ -468,12 +475,12 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
         current_lineno = view.rowcol(view.sel()[0].end())[0] + 1
 
         if None not in (path, target_path, target_lineno):
-            self.save_pos(view.file_name(), current_lineno)
+            self.save_pos(file_or_buffer_name(view), current_lineno)
             path = target_path + ":" + str(target_lineno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
         elif target_lineno is not None:
-            self.save_pos(view.file_name(), current_lineno)
-            path = view.file_name() + ":" + str(target_lineno)
+            self.save_pos(file_or_buffer_name(view), current_lineno)
+            path = file_or_buffer_name(view) + ":" + str(target_lineno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
         else:
             # fail silently (user selected whitespace, etc)
