@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-
-## Taken from SublimeLinter
 import sys
 import os
 import os.path
@@ -66,9 +64,9 @@ class PythonError(PythonLintError):
         )
 
 
-def pyflakes_check(code, filename, ignore=None):
+def pyflakes_check(code, encoding, filename, ignore=None):
     try:
-        tree = compile(code, filename, "exec", _ast.PyCF_ONLY_AST)
+        tree = compile(code.encode(encoding), filename, "exec", _ast.PyCF_ONLY_AST)
     except (SyntaxError, IndentationError) as value:
         msg = value.args[0]
 
@@ -163,7 +161,7 @@ def pep8_check(code, filename, ignore=None, max_line_length=pep8.MAX_LINE_LENGTH
     return messages
 
 
-def do_linting(lint_settings, code, filename):
+def do_linting(lint_settings, code, encoding, filename):
     errors = []
 
     if lint_settings.get("pep8", True):
@@ -180,6 +178,6 @@ def do_linting(lint_settings, code, filename):
     pyflakes_disabled = lint_settings.get('pyflakes_disabled', False)
 
     if not pyflakes_disabled:
-        errors.extend(pyflakes_check(code, filename, pyflakes_ignore))
+        errors.extend(pyflakes_check(code, encoding, filename, pyflakes_ignore))
 
     return errors

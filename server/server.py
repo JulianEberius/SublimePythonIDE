@@ -295,11 +295,11 @@ class LinterMixin(object):
     cases.
     """
 
-    def check_syntax(self, code, lint_settings, filename):
+    def check_syntax(self, code, encoding, lint_settings, filename):
         '''The linting mixin does not use the project_for machinery,
         but uses the linters directy.'''
         try:
-            codes = do_linting(lint_settings, code, filename)
+            codes = do_linting(lint_settings, code, encoding, filename)
         except Exception:
             import traceback
             sys.stderr.write(traceback.format_exc())
