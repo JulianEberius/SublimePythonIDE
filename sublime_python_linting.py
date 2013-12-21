@@ -126,8 +126,11 @@ class PythonLintingListener(sublime_plugin.EventListener):
                 'pyflakes_ignore', view, default_value=[]),
         }
 
-        errors = proxy.check_syntax(view.substr(
-            sublime.Region(0, view.size())), lint_settings, filename)
+        code = view.substr(sublime.Region(0, view.size()))
+        # python's compile function does not take unicode strings if
+        # they contain "# coding: " statements
+        code = code.encode(view.encoding())
+        errors = proxy.check_syntax(code, lint_settings, filename)
         try:
             errors = pickle.loads(errors.data)
 
