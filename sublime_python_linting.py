@@ -129,7 +129,9 @@ class PythonLintingListener(sublime_plugin.EventListener):
         }
 
         code = view.substr(sublime.Region(0, view.size()))
-        encoding = view.encoding() or "utf-8"
+        encoding = view.encoding()
+        if encoding.lower() == "undefined":
+            encoding = "utf-8"
         errors = proxy.check_syntax(code, encoding, lint_settings, filename)
         try:
             errors = pickle.loads(errors.data)
