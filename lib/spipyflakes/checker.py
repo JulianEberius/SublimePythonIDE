@@ -36,7 +36,7 @@ else:
     ast_TryExcept = ast.TryExcept
     ast_TryFinally = ast.TryFinally
 
-from pyflakes import messages
+from spipyflakes import messages
 
 
 class Binding(object):

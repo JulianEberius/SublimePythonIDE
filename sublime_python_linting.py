@@ -11,7 +11,8 @@ import sublime_plugin
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-import pyflakes
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+import spipyflakes as pyflakes
 from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
 from sublime_python import proxy_for, get_setting, file_or_buffer_name
 

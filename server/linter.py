@@ -6,8 +6,8 @@ import os.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
 
 import _ast
-import pep8
-import pyflakes.checker as pyflakes
+import spipep8 as pep8
+import spipyflakes.checker as pyflakes
 
 pyflakes.messages.Message.__str__ = (
     lambda self: self.message % self.message_args
