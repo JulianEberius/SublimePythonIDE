@@ -1,6 +1,5 @@
 import os
 import re
-import sys
 import pickle
 from collections import defaultdict
 from functools import cmp_to_key, wraps
@@ -19,10 +18,12 @@ class Importer(object):
         super(Importer, self).__init__()
         self.paths = paths
 
-    def import_(self, name):
+    def import_(self, name, as_name=None):
+        if as_name is None:
+            as_name = name
         data = imp.find_module(name, self.paths)
         try:
-            return imp.load_module(name, *data)
+            return imp.load_module(as_name, *data)
         except:
             data[0].close()
             raise
@@ -33,7 +34,7 @@ importer = Importer([os.path.dirname(__file__),
                     os.path.join(os.path.dirname(__file__), "server")])
 
 pyflakes = importer.import_("pyflakes")
-pyflakes.messages = importer.import_("messages")
+pyflakes.messages = importer.import_("messages", "pyflakes.messages")
 linter = importer.import_("linter")
 sublime_python = importer.import_("sublime_python")
 
