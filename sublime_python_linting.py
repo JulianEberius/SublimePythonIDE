@@ -4,16 +4,38 @@ import sys
 import pickle
 from collections import defaultdict
 from functools import cmp_to_key, wraps
+import imp
 
 import sublime
 import sublime_plugin
 
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-import pyflakes
-from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
-from sublime_python import proxy_for, get_setting, file_or_buffer_name
+class Importer(object):
+    """ Useful for importing modules without meddling with sys.path.
+    This is dangerous in plugin code, as multiple plugins in ST3
+    run in the same Python interpreter, so changing sys.path can
+    interfere with those other plugins."""
+    def __init__(self, paths):
+        super(Importer, self).__init__()
+        self.paths = paths
+
+    def import_(self, name):
+        data = imp.find_module(name, self.paths)
+        try:
+            return imp.load_module(name, *data)
+        except:
+            data[0].close()
+            raise
+
+importer = Importer([os.path.dirname(__file__),
+                    os.path.join(os.path.dirname(__file__), "lib"),
+                    os.path.join(os.path.dirname(__file__), "lib", "pyflakes"),
+                    os.path.join(os.path.dirname(__file__), "server")])
+
+pyflakes = importer.import_("pyflakes")
+pyflakes.messages = importer.import_("messages")
+linter = importer.import_("linter")
+sublime_python = importer.import_("sublime_python")
 
 
 def python_only(func):
@@ -104,27 +126,26 @@ class PythonLintingListener(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self, view):
         if (self.is_python_syntax(view)
-                and get_setting('python_linting', view, True)):
+                and sublime_python.get_setting('python_linting', view, True)):
             self.update_statusbar(view)
 
     def check(self, view):
         """Perform a linter check on the view
         """
 
-        if not get_setting('python_linting', view, True):
+        if not sublime_python.get_setting('python_linting', view, True):
             return
-
-        filename = file_or_buffer_name(view)
-        proxy = proxy_for(view)
+        filename = sublime_python.file_or_buffer_name(view)
+        proxy = sublime_python.proxy_for(view)
         if not proxy:
             return
 
         lint_settings = {
-            'pep8': get_setting('pep8', view, default_value=True),
-            'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),
-            'pep8_max_line_length': get_setting(
+            'pep8': sublime_python.get_setting('pep8', view, default_value=True),
+            'pep8_ignore': sublime_python.get_setting('pep8_ignore', view, default_value=[]),
+            'pep8_max_line_length': sublime_python.get_setting(
                 'pep8_max_line_length', view, default_value=None),
-            'pyflakes_ignore': get_setting(
+            'pyflakes_ignore': sublime_python.get_setting(
                 'pyflakes_ignore', view, default_value=[]),
         }
 
@@ -191,7 +212,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
         """Adds lint marks to view on the given lines.
         """
 
-        style = get_setting('python_linter_mark_style', view, 'outline')
+        style = sublime_python.get_setting('python_linter_mark_style', view, 'outline')
         outline_style = {'none': sublime.HIDDEN}
 
         self._erase_lint_marks(view)
@@ -329,7 +350,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
                 continue
 
             self.add_message(error.lineno, lines, str(error), messages)
-            if isinstance(error, (Pep8Error, Pep8Warning, OffsetError, PythonLintError)):
+            if isinstance(error, (linter.Pep8Error, linter.Pep8Warning, linter.OffsetError, linter.PythonLintError)):
                 self.underline_range(
                     view, error.lineno, error.offset, underlines
                 )
@@ -408,8 +429,8 @@ class PythonLintingListener(sublime_plugin.EventListener):
         """
 
         image = ''
-        if get_setting('python_linter_gutter_marks', view, True):
-            theme = get_setting(
+        if sublime_python.get_setting('python_linter_gutter_marks', view, True):
+            theme = sublime_python.get_setting(
                 'python_linter_gutter_marks_theme', view, 'simple'
             )
 
