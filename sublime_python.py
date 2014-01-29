@@ -9,11 +9,6 @@ import sublime
 import sublime_plugin
 from queue import Queue
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
-from util import AsynchronousFileReader, DebugProcDummy
-
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
 # contains proxy objects for external Python processes, by interpreter used
@@ -496,3 +491,35 @@ class PythonGoBackCommand(sublime_plugin.WindowCommand):
             file_name, lineno = GOTO_STACK.pop()
             path = file_name + ":" + str(lineno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
+
+
+class AsynchronousFileReader(threading.Thread):
+    '''
+    Helper class to implement asynchronous reading of a file
+    in a separate thread. Pushes read lines on a queue to
+    be consumed in another thread.
+
+    Used for reading stderr output of the server.
+    '''
+
+    def __init__(self, name, fd, queue):
+        threading.Thread.__init__(self)
+        self.name = name
+        self._fd = fd
+        self._queue = queue
+
+    def run(self):
+        '''The body of the tread: read lines and put them on the queue.'''
+        for line in iter(self._fd.readline, ''):
+            if line:
+                self._queue.put("{0}: {1}".format(self.name, line))
+
+
+class DebugProcDummy(object):
+    """Used only for debugging, when the server process is started externally
+    """
+    def poll(*args):
+        return None
+
+    def terminate():
+        pass
