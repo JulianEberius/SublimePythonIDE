@@ -8,7 +8,7 @@ are calculated using the exact same python interpreter you use for your project 
 This eliminates a lot of small and big problems that SublimeRope had, e.g., not recognizing dict comprehensions because Python2.6 is used in ST2, or not recognizing some of your libraries because you did not configure all the paths etc..
 Everything your projects interpreter sees, should be visible to SublimePython -> easier configuration.
 
-I also added a lot caching throughout the underlying Rope library which improved completion performance by several orders of magnitude. I hope no functionality breakes because of this ;-)
+I also added a lot caching throughout the underlying Rope library which improved completion performance by several orders of magnitude. I hope no functionality breaks because of this ;-)
 
 
 Configuration
