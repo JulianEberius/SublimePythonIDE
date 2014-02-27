@@ -89,6 +89,9 @@ class Proxy(object):
         s.close()
         return port
 
+    def resolve_localhost(self):
+        return socket.gethostbyname("localhost")
+
     def restart(self):
         ''' (re)starts a Python IDE-server
         this method is complicated by SublimePythonIDE having two different debug modes,
@@ -134,7 +137,7 @@ class Proxy(object):
 
             # in any case, we also need a local client object
             self.proxy = xmlrpc.client.ServerProxy(
-                'http://localhost:%i' % self.port, allow_none=True)
+                'http://%s:%i' % (self.resolve_localhost(), self.port), allow_none=True)
             self.set_heartbeat_timer()
         except OSError as e:
             print("error starting server:", e)
