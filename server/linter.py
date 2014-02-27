@@ -14,12 +14,27 @@ pyflakes.messages.Message.__str__ = (
 )
 
 
+class PyflakesLoc:
+    """ Error location data for pyflakes.
+
+    pyflakes 0.7 wants loc as {lineno, col_offset} object
+    we ducktype it here. Apparently AST code
+    has been upgraded in some point?
+
+    Online lineno attribute is required.
+    """
+
+    def __init__(self, lineno):
+        self.lineno = lineno
+
+
 class PythonLintError(pyflakes.messages.Message):
 
     def __init__(
         self, filename, loc, level, message,
             message_args, offset=0, text=None):
-        super(PythonLintError, self).__init__(filename, loc)
+
+        super(PythonLintError, self).__init__(filename, PyflakesLoc(loc))
         self.level = level
         self.message = message
         self.message_args = message_args
@@ -162,6 +177,7 @@ def pep8_check(code, filename, ignore=None, max_line_length=pep8.MAX_LINE_LENGTH
 
 
 def do_linting(lint_settings, code, encoding, filename):
+
     errors = []
 
     if lint_settings.get("pep8", True):
