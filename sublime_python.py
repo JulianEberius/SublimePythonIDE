@@ -80,6 +80,7 @@ class Proxy(object):
         self.port = None
         self.stderr_reader = None
         self.queue = None
+        self.rpc_lock = threading.Lock()
         self.restart()
 
     def get_free_port(self):
@@ -170,7 +171,7 @@ class Proxy(object):
 
     def send_heartbeat(self):
         if self.proxy:
-            self.proxy.heartbeat()
+            self.heartbeat()  # implemented in proxy through __getattr__
             self.set_heartbeat_timer()
 
     def __getattr__(self, attr):
@@ -184,19 +185,24 @@ class Proxy(object):
             method = getattr(self.proxy, attr)
             result = None
             tries = 0
-            while tries < RETRY_CONNECTION_LIMIT:
-                try:
-                    result = method(*args, **kwargs)
-                    break
-                except Exception:
-                    tries += 1
-                    if self.proc.poll() is None:
-                        # just retry
-                        time.sleep(0.2)
-                    else:
-                        # died, restart and retry
-                        self.restart()
-                        time.sleep(0.2)
+
+            # multiple ST3 threads may use the proxy (e.g. linting in parallel
+            # to heartbeat etc.) XML-RPC client objects are single-threaded
+            # only though, so we introduce a lock here
+            with self.rpc_lock:
+                while tries < RETRY_CONNECTION_LIMIT:
+                    try:
+                        result = method(*args, **kwargs)
+                        break
+                    except Exception:
+                        tries += 1
+                        if self.proc.poll() is None:
+                            # just retry
+                            time.sleep(0.2)
+                        else:
+                            # died, restart and retry
+                            self.restart()
+                            time.sleep(0.2)
             return result
         return wrapper
 
