@@ -355,7 +355,7 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
             return []
         path = file_or_buffer_name(view)
         source = view.substr(sublime.Region(0, view.size()))
-        loc = locations[0]
+        loc = view.rowcol(locations[0])
         # t0 = time.time()
         proxy = proxy_for(view)
         if not proxy:
