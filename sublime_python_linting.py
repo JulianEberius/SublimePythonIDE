@@ -119,21 +119,11 @@ def check(view=None):
 
 
 def update_statusbar(view):
-    if (_is_python_syntax(view)
-            and get_setting('python_linting', view, True)):
-        _update_statusbar(view)
-
-
-def _update_statusbar(view):
     """Updates the view status bar
     """
-
-    lineno = view.rowcol(view.sel()[0].end())[0] + 0
-    if not hasattr(_update_statusbar, 'last_selected_line_number'):
-        _update_statusbar.last_selected_line_number = -1
-
-    if _update_statusbar.last_selected_line_number != lineno:
-        _update_statusbar.last_selected_line_number = lineno
+    if (_is_python_syntax(view)
+            and get_setting('python_linting', view, True)):
+        lineno = view.rowcol(view.sel()[0].end())[0] + 0
         errors_msg = _get_lineno_msgs(view, lineno)
 
         if len(errors_msg) > 0:
@@ -431,6 +421,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.last_selected_line_number = -1
 
     @python_only
     def on_load_async(self, view):
@@ -456,7 +447,9 @@ class PythonLintingListener(sublime_plugin.EventListener):
         """Update status bar text when cursor
         changes spot.
         """
-        update_statusbar(view)
+        lineno = view.rowcol(view.sel()[0].end())[0] + 0
+        if self.last_selected_line_number != lineno:
+            update_statusbar(view)
 
 
 class PythonDisablePep8Command(sublime_plugin.ApplicationCommand):
