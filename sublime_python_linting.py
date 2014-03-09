@@ -64,64 +64,64 @@ ORIGINAL_MARK_THEME = {
 
 
 def check(view=None):
-        """Perform a linter check on the view
-        """
-        if view is None:
-            view = get_current_active_view()
+    """Perform a linter check on the view
+    """
+    if view is None:
+        view = get_current_active_view()
 
-        if not get_setting('python_linting', view, True):
-            return
+    if not get_setting('python_linting', view, True):
+        return
 
-        filename = file_or_buffer_name(view)
-        proxy = proxy_for(view)
-        if not proxy:
-            return
+    filename = file_or_buffer_name(view)
+    proxy = proxy_for(view)
+    if not proxy:
+        return
 
-        lint_settings = {
-            'pep8': get_setting('pep8', view, default_value=True),
-            'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),
-            'pep8_max_line_length': get_setting(
-                'pep8_max_line_length', view, default_value=None),
-            'pyflakes_ignore': get_setting(
-                'pyflakes_ignore', view, default_value=[]),
-        }
+    lint_settings = {
+        'pep8': get_setting('pep8', view, default_value=True),
+        'pep8_ignore': get_setting('pep8_ignore', view, default_value=[]),
+        'pep8_max_line_length': get_setting(
+            'pep8_max_line_length', view, default_value=None),
+        'pyflakes_ignore': get_setting(
+            'pyflakes_ignore', view, default_value=[]),
+    }
 
-        code = view.substr(sublime.Region(0, view.size()))
-        encoding = view.encoding()
-        if encoding.lower() == "undefined":
-            encoding = "utf-8"
-        errors = proxy.check_syntax(code, encoding, lint_settings, filename)
+    code = view.substr(sublime.Region(0, view.size()))
+    encoding = view.encoding()
+    if encoding.lower() == "undefined":
+        encoding = "utf-8"
+    errors = proxy.check_syntax(code, encoding, lint_settings, filename)
+    try:
+        errors = pickle.loads(errors.data)
+
+        vid = view.id()
+        lines = set()
+
+        # leave this here for compatibility with original plugin
+        error_underlines[vid] = []
+        error_messages[vid] = {}
+        violation_underlines[vid] = []
+        violation_messages[vid] = {}
+        warning_underlines[vid] = []
+        warning_messages[vid] = {}
+
+        parse_errors(view, errors, lines, vid)
+
+        # the result can be a list of errors, or single syntax exception
         try:
-            errors = pickle.loads(errors.data)
+            _update_lint_marks(view, lines)
+        except Exception as e:
+            print('SublimePythonIDE: Add lint marks failed\n{0}'.format(e))
 
-            vid = view.id()
-            lines = set()
-
-            # leave this here for compatibility with original plugin
-            error_underlines[vid] = []
-            error_messages[vid] = {}
-            violation_underlines[vid] = []
-            violation_messages[vid] = {}
-            warning_underlines[vid] = []
-            warning_messages[vid] = {}
-
-            parse_errors(view, errors, lines, vid)
-
-            # the result can be a list of errors, or single syntax exception
-            try:
-                _update_lint_marks(view, lines)
-            except Exception as e:
-                print('SublimePythonIDE: Add lint marks failed\n{0}'.format(e))
-
-            update_statusbar(view)
-        except Exception as error:
-            print("SublimePythonIDE: No server respose\n{0}".format(error))
+        update_statusbar(view)
+    except Exception as error:
+        print("SublimePythonIDE: No server respose\n{0}".format(error))
 
 
 def update_statusbar(view):
-        if (_is_python_syntax(view)
-                and get_setting('python_linting', view, True)):
-            _update_statusbar(view)
+    if (_is_python_syntax(view)
+            and get_setting('python_linting', view, True)):
+        _update_statusbar(view)
 
 
 def _update_statusbar(view):
@@ -395,7 +395,8 @@ def _get_gutter_mark_theme(view, lint_type):
         if theme == 'original':
             image = ORIGINAL_MARK_THEME[lint_type]
         elif theme in MARK_THEMES:
-            # this API does not expect OS-specific paths, but only forward-slashes
+            # this API does not expect OS-specific paths, but only
+            # forward-slashes
             image = MARK_THEMES_PATH + '/' + '{0}-{1}.png'.format(
                 theme, lint_type)
 
@@ -423,8 +424,8 @@ def python_only(func):
 
 
 class PythonLintingListener(sublime_plugin.EventListener):
-    """
-    This class hooks into various Sublime Text events to check
+
+    """This class hooks into various Sublime Text events to check
     for lint and update status bar text.
     """
 
