@@ -257,7 +257,9 @@ def project_venv_python(view):
         workon_dir = get_setting("workon_home", view, os.environ.get(
             "WORKON_HOME", None))
         if workon_dir:
+            workon_dir = os.path.expanduser(workon_dir)
             venv_path = project_dir.split(os.sep)[-1]
+            venv_path = os.path.join(workon_dir, venv_path)
             if not os.path.exists(venv_path):
                 return None  # no venv path found: abort
         else:
