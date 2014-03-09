@@ -21,6 +21,7 @@ from linter import do_linting
 
 from rope.base import libutils
 from rope.base.project import Project
+from rope.refactor.rename import Rename
 from rope.base.exceptions import ModuleSyntaxError
 from rope.contrib.codeassist import (
     code_assist, sorted_proposals, get_doc, get_definition_location
@@ -229,6 +230,12 @@ class RopeFunctionsMixin(object):
         if project_path != NO_ROOT_PATH:
             project, file_path = self.project_for(project_path, file_path)
             libutils.report_change(project, file_path, "")
+
+    def rename(self, project_path, file_path, loc, source, new_name):
+        project, resource = self._get_resource(project_path, file_path, source)
+        rename = Rename(project, resource, loc)
+        changes = rename.get_changes(new_name, in_hierarchy=True)
+        project.do(changes)
 
     def _proposal_string(self, p):
         """
