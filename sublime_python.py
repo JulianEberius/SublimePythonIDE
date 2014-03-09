@@ -60,11 +60,8 @@ def get_setting(key, view=None, default_value=None):
     return s.get(key, default_value)
 
 
-def override_view_setting(key, value, view=None):
-    if view is None:
-        view = get_current_active_view()
+def override_view_setting(key, value, view):
     view.settings().set(key, value)
-    print ('overriden settings ', view)
 
 
 def get_current_active_view():

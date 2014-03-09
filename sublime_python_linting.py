@@ -85,7 +85,7 @@ def check(view=None):
             'pyflakes_ignore': get_setting(
                 'pyflakes_ignore', view, default_value=[]),
         }
-        print (lint_settings)
+
         code = view.substr(sublime.Region(0, view.size()))
         encoding = view.encoding()
         if encoding.lower() == "undefined":
@@ -461,12 +461,14 @@ class PythonLintingListener(sublime_plugin.EventListener):
 class PythonDisablePep8Command(sublime_plugin.ApplicationCommand):
 
     def run(self, *args):
-        override_view_setting('pep8', False)
-        check()
+        view = get_current_active_view()
+        override_view_setting('pep8', False, view)
+        check(view)
 
 
 class PythonEnablePep8Command(sublime_plugin.ApplicationCommand):
 
     def run(self, *args):
-        override_view_setting('pep8', True)
-        check()
+        view = get_current_active_view()
+        override_view_setting('pep8', True, view)
+        check(view)
