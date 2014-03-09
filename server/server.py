@@ -374,24 +374,24 @@ class XMLRPCServerThread(threading.Thread):
 
 
 if __name__ == '__main__':
-        try:
-            # single argument to this process should be the port to listen on
-            port = int(sys.argv[1])
-            # second argument may be "--debug" in which case the server prints to stderr
-            debug = False
-            if len(sys.argv) > 2 and sys.argv[2].strip() == "--debug":
-                debug = True
+    try:
+        # single argument to this process should be the port to listen on
+        port = int(sys.argv[1])
+        # second argument may be "--debug" in which case the server prints to stderr
+        debug = False
+        if len(sys.argv) > 2 and sys.argv[2].strip() == "--debug":
+            debug = True
 
-            # the SimpleXMLRPCServer is run in a new thread
-            server_thread = XMLRPCServerThread(port, debug)
-            server_thread.start()
+        # the SimpleXMLRPCServer is run in a new thread
+        server_thread = XMLRPCServerThread(port, debug)
+        server_thread.start()
 
-            # the main thread checks for heartbeat messages
-            while 1:
-                time.sleep(HEARTBEAT_TIMEOUT)
-                if time.time() - last_heartbeat > HEARTBEAT_TIMEOUT:
-                    sys.exit()
-        except Exception as e:
-            sys.stderr.write("SublimePythonIDE Server Error: %s\n" % str(e))
-            import traceback
-            traceback.print_exc()
+        # the main thread checks for heartbeat messages
+        while 1:
+            time.sleep(HEARTBEAT_TIMEOUT)
+            if time.time() - last_heartbeat > HEARTBEAT_TIMEOUT:
+                sys.exit()
+    except Exception as e:
+        sys.stderr.write("SublimePythonIDE Server Error: %s\n" % str(e))
+        import traceback
+        traceback.print_exc()
