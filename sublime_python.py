@@ -9,10 +9,10 @@ import sublime
 import sublime_plugin
 from queue import Queue
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+from SublimePythonIDE import util
+util.update_sys_path()
 from util import AsynchronousFileReader, DebugProcDummy
+
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}

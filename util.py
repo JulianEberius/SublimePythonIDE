@@ -1,6 +1,19 @@
+import sys
+import os.path
 import sublime_plugin
 import sublime
 import threading
+
+
+def update_sys_path():
+    plugin_dir = os.path.dirname(__file__)
+    lib_dir = os.path.join(os.path.dirname(__file__), "lib")
+    server_dir = os.path.join(os.path.dirname(__file__), "server")
+    path_extensions = [plugin_dir, lib_dir, server_dir]
+
+    for pe in path_extensions:
+        if pe not in sys.path:
+            sys.path.insert(0, pe)
 
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):

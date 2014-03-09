@@ -10,7 +10,6 @@ Furthermore, the error highlighting code is also adapted from there.
 
 import os
 import re
-import sys
 import pickle
 from collections import defaultdict
 from functools import cmp_to_key, wraps
@@ -18,9 +17,9 @@ from functools import cmp_to_key, wraps
 import sublime
 import sublime_plugin
 
+from SublimePythonIDE import util
+util.update_sys_path()
 
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import pyflakes
 from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
 from sublime_python import proxy_for, get_setting, file_or_buffer_name
