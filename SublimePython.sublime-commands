@@ -10,5 +10,13 @@
     {
         "caption": "Python: Get documentation",
         "command": "python_get_documentation"
+    },
+    {
+        "caption": "Python: Enable Pep8 Linting On View",
+        "command": "python_enable_pep8"
+    },
+    {
+        "caption": "Python: Disable Pep8 Linting On View",
+        "command": "python_disable_pep8"
     }
 ]

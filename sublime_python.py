@@ -49,7 +49,7 @@ DEFAULT_VENV_DIR_NAME = "venv"
 
 def get_setting(key, view=None, default_value=None):
     if view is None:
-        view = sublime.active_window().active_view()
+        view = get_current_active_view()
     try:
         settings = view.settings()
         if settings.has(key):
@@ -58,6 +58,17 @@ def get_setting(key, view=None, default_value=None):
         pass
     s = sublime.load_settings('SublimePython.sublime-settings')
     return s.get(key, default_value)
+
+
+def override_view_setting(key, value, view=None):
+    if view is None:
+        view = get_current_active_view()
+    view.settings().set(key, value)
+    print ('overriden settings ', view)
+
+
+def get_current_active_view():
+    return sublime.active_window().active_view()
 
 
 def file_or_buffer_name(view):

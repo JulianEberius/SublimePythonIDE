@@ -1,3 +1,13 @@
+"""
+This module copies a lot of logic from SublimeLinter:
+    (https://github.com/SublimeLinter/SublimeLinter)
+
+Specifically, the Python-Linting parts (PEP8, PyFlakes)
+are included partly here, and partly in server/linter.py.
+
+Furthermore, the error highlighting code is also adapted from there.
+"""
+
 import os
 import re
 import sys
@@ -14,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import pyflakes
 from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
 from sublime_python import proxy_for, get_setting, file_or_buffer_name
-
+from sublime_python import override_view_setting, get_current_active_view
 
 error_underlines = defaultdict(list)
 violation_underlines = defaultdict(list)
@@ -37,7 +47,6 @@ MARK_THEMES = ('alpha', 'bright', 'dark', 'hard', 'simple')
 
 '''The path to the built-in gutter mark themes. this API does not
 expect OS-specific paths, but only forward-slashes'''
-
 MARK_THEMES_PATH = "/".join(
     [
         "Packages",
@@ -54,9 +63,11 @@ ORIGINAL_MARK_THEME = {
 }
 
 
-def check(view):
+def check(view=None):
         """Perform a linter check on the view
         """
+        if view is None:
+            view = get_current_active_view()
 
         if not get_setting('python_linting', view, True):
             return
@@ -74,7 +85,7 @@ def check(view):
             'pyflakes_ignore': get_setting(
                 'pyflakes_ignore', view, default_value=[]),
         }
-
+        print (lint_settings)
         code = view.substr(sublime.Region(0, view.size()))
         encoding = view.encoding()
         if encoding.lower() == "undefined":
@@ -98,13 +109,19 @@ def check(view):
 
             # the result can be a list of errors, or single syntax exception
             try:
-                add_lint_marks(view, lines)
+                _update_lint_marks(view, lines)
             except Exception as e:
                 print('SublimePythonIDE: Add lint marks failed\n{0}'.format(e))
 
-            handle_update_selection(view)
+            update_statusbar(view)
         except Exception as error:
             print("SublimePythonIDE: No server respose\n{0}".format(error))
+
+
+def update_statusbar(view):
+        if (_is_python_syntax(view)
+                and get_setting('python_linting', view, True)):
+            _update_statusbar(view)
 
 
 def _update_statusbar(view):
@@ -125,12 +142,6 @@ def _update_statusbar(view):
             view.erase_status('Linter')
 
 
-def handle_update_selection(view):
-        if (is_python_syntax(view)
-                and get_setting('python_linting', view, True)):
-            _update_statusbar(view)
-
-
 def _get_lineno_msgs(view, lineno):
     """Get lineno error messages and return it back
     """
@@ -145,8 +156,8 @@ def _get_lineno_msgs(view, lineno):
     return errors_msg
 
 
-def add_lint_marks(view, lines):
-    """Adds lint marks to view on the given lines.
+def _update_lint_marks(view, lines):
+    """Update lint marks to view on the given lines.
     """
 
     style = get_setting('python_linter_mark_style', view, 'outline')
@@ -391,7 +402,7 @@ def _get_gutter_mark_theme(view, lint_type):
     return image
 
 
-def is_python_syntax(view):
+def _is_python_syntax(view):
     """Return true if we are in a Python syntax defined view
     """
 
@@ -405,7 +416,7 @@ def python_only(func):
 
     @wraps(func)
     def wrapper(self, view):
-        if is_python_syntax(view) and not view.is_scratch():
+        if _is_python_syntax(view) and not view.is_scratch():
             return func(self, view)
 
     return wrapper
@@ -413,13 +424,8 @@ def python_only(func):
 
 class PythonLintingListener(sublime_plugin.EventListener):
     """
-    Copies a lot of logic from SublimeLinter:
-        (https://github.com/SublimeLinter/SublimeLinter)
-
-    Specifically, the Python-Linting parts (PEP8, PyFlakes)
-    are included partly here, and partly in server/linter.py.
-
-    Furthermore, the error highlighting code is also adapted from there.
+    This class hooks into various Sublime Text events to check
+    for lint and update status bar text.
     """
 
     def __init__(self, *args, **kwargs):
@@ -446,4 +452,21 @@ class PythonLintingListener(sublime_plugin.EventListener):
         check(view)
 
     def on_selection_modified_async(self, view):
-        handle_update_selection(view)
+        """Update status bar text when cursor
+        changes spot.
+        """
+        update_statusbar(view)
+
+
+class PythonDisablePep8Command(sublime_plugin.ApplicationCommand):
+
+    def run(self, *args):
+        override_view_setting('pep8', False)
+        check()
+
+
+class PythonEnablePep8Command(sublime_plugin.ApplicationCommand):
+
+    def run(self, *args):
+        override_view_setting('pep8', True)
+        check()
