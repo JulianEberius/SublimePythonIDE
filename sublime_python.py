@@ -340,19 +340,6 @@ def root_folder_for(view):
 
 '''Plugin Commands and EventListeners'''
 
-class PythonStopServerCommand(sublime_plugin.WindowCommand):
-    '''stops the server this view is connected to. unused'''
-    def run(self, *args):
-        with PROXY_LOCK:
-            python = get_setting("python_interpreter", "")
-            if python == "":
-                python = "python"
-            proxy = PROXIES.get(python, None)
-            if proxy:
-                proxy.stop()
-                del PROXIES[python]
-
-
 class PythonCompletionsListener(sublime_plugin.EventListener):
     '''Retrieves completion proposals from external Python
     processes running Rope'''
