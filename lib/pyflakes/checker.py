@@ -45,7 +45,7 @@ else:
     ast_TryExcept = ast.TryExcept
     ast_TryFinally = ast.TryFinally
 
-from pyflakes import messages
+from SublimePythonIDE.lib.pyflakes import messages
 
 
 if PY2:

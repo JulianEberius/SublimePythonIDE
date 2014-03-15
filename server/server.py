@@ -5,6 +5,13 @@ import logging
 import tempfile
 import threading
 
+# add path above SublimePythonIDE to sys.path to be able to do the same
+# relative import as the plugin itself does
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from SublimePythonIDE.server.linter import do_linting
+
+# furthermore, modify sys.path to import the correct rope version
 if sys.version_info[0] == 2:
     sys.path.insert(
         0, os.path.join(os.path.dirname(__file__), "..", "lib", "python2"))
@@ -15,9 +22,6 @@ else:
         0, os.path.join(os.path.dirname(__file__), "..", "lib", "python3"))
     from xmlrpc.server import SimpleXMLRPCServer
     from xmlrpc.client import Binary
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
-from linter import do_linting
 
 from rope.base import libutils
 from rope.base.project import Project

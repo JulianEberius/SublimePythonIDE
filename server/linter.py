@@ -1,13 +1,7 @@
 # -*- coding: utf-8 -*-
-import sys
-import os
-import os.path
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../lib"))
-
 import _ast
-import pep8
-import pyflakes.checker as pyflakes
+from SublimePythonIDE.lib import pep8
+import SublimePythonIDE.lib.pyflakes.checker as pyflakes
 
 pyflakes.messages.Message.__str__ = (
     lambda self: self.message % self.message_args
