@@ -23,4 +23,8 @@
         "caption": "Python Refactor: Rename",
         "command": "python_refactor_rename"
     },
+    {
+        "caption": "Python Refactor: Extract Method",
+        "command": "python_extract_method"
+    },
 ]

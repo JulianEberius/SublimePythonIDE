@@ -22,6 +22,7 @@ from linter import do_linting
 from rope.base import libutils
 from rope.base.project import Project
 from rope.refactor.rename import Rename
+from rope.refactor.extract import ExtractMethod
 from rope.base.exceptions import ModuleSyntaxError
 from rope.contrib.codeassist import (
     code_assist, sorted_proposals, get_doc, get_definition_location
@@ -235,6 +236,12 @@ class RopeFunctionsMixin(object):
         project, resource = self._get_resource(project_path, file_path, source)
         rename = Rename(project, resource, loc)
         changes = rename.get_changes(new_name, in_hierarchy=True)
+        project.do(changes)
+
+    def extract_method(self, project_path, file_path, start, end, source, new_name):
+        project, resource = self._get_resource(project_path, file_path, source)
+        rename = ExtractMethod(project, resource, start, end)
+        changes = rename.get_changes(new_name)
         project.do(changes)
 
     def _proposal_string(self, p):
