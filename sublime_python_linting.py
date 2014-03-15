@@ -17,13 +17,10 @@ from functools import cmp_to_key, wraps
 import sublime
 import sublime_plugin
 
-from SublimePythonIDE import util
-util.update_sys_path()
-
-import pyflakes
-from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
-from sublime_python import proxy_for, get_setting, file_or_buffer_name
-from sublime_python import override_view_setting, get_current_active_view
+from SublimePythonIDE.lib import pyflakes
+from SublimePythonIDE.server.linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
+from SublimePythonIDE.sublime_python import proxy_for, get_setting, file_or_buffer_name
+from SublimePythonIDE.sublime_python import override_view_setting, get_current_active_view
 
 error_underlines = defaultdict(list)
 violation_underlines = defaultdict(list)

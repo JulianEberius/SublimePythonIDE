@@ -9,9 +9,7 @@ import sublime
 import sublime_plugin
 from queue import Queue
 
-from SublimePythonIDE import util
-util.update_sys_path()
-from util import AsynchronousFileReader, DebugProcDummy
+from SublimePythonIDE.util import AsynchronousFileReader, DebugProcDummy
 
 
 # contains root paths for each view, see root_folder_for()

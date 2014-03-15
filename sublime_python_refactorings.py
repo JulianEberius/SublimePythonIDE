@@ -3,10 +3,7 @@ from abc import ABCMeta, abstractmethod
 import sublime
 import sublime_plugin
 
-from SublimePythonIDE import util
-util.update_sys_path()
-
-from sublime_python import proxy_for, file_or_buffer_name, root_folder_for
+from SublimePythonIDE.sublime_python import proxy_for, file_or_buffer_name, root_folder_for
 
 
 class PythonAbstractRefactoring(object):
