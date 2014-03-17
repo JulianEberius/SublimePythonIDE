@@ -27,7 +27,7 @@ SYSTEM_PYTHON = None
 CREATION_FLAGS = 0 if os.name != "nt" else 0x08000000
 
 # debugging, see documentation of Proxy.restart()
-DEBUG_PORT = 8765
+DEBUG_PORT = None
 SERVER_DEBUGGING = False
 
 

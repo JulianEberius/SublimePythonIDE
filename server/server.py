@@ -34,7 +34,7 @@ from rope.refactor.rename import Rename
 from rope.refactor.extract import ExtractMethod
 from rope.base.exceptions import ModuleSyntaxError
 from rope.contrib.codeassist import (
-    code_assist, sorted_proposals, get_doc, get_definition_location
+    get_doc, get_definition_location
 )
 
 # global state of the server process
@@ -168,9 +168,10 @@ class RopeFunctionsMixin(object):
         project, resource = self._get_resource(project_path, file_path, source)
 
         try:
-            proposals = code_assist(
-                project, source, loc, resource=resource, maxfixes=3)
-            proposals = sorted_proposals(proposals)
+            row, col = loc
+            row += 1
+            script = jedi.Script(source, row, col, file_path)
+            proposals = script.completions()
         except ModuleSyntaxError:
             proposals = []
         except Exception:
@@ -183,6 +184,7 @@ class RopeFunctionsMixin(object):
                 for p in proposals if p.name != 'self='
             ]
 
+        jedi.cache.clear_caches()
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
@@ -260,31 +262,14 @@ class RopeFunctionsMixin(object):
         :param p: the original proposal structure
         """
 
-        if p.parameters:
-            params = [par for par in p.parameters if par != 'self']
-            result = '{name}({params})'.format(
-                name=p.name,
-                params=', '.join(param for param in params)
-            )
-        else:
-            result = p.name
-
-        return '{result}\t({scope}, {type})'.format(
-            result=result, scope=p.scope, type=p.type)
+        return '{result}\t({type})'.format(
+            result=p.name, type=p.type)
 
     def _insert_string(self, p):
         """
         """
 
-        if p.parameters:
-            params = [par for par in p.parameters if par != 'self']
-            param_snippet = ", ".join(
-                "${%i:%s}" %
-                (idx + 1, param) for idx, param in enumerate(params))
-            result = "%s(%s)" % (p.name, param_snippet)
-        else:
-            result = p.name
-
+        result = p.name
         return result
 
     def _get_resource(self, project_path, file_path, source):
