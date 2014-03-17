@@ -17,10 +17,10 @@ from functools import cmp_to_key, wraps
 import sublime
 import sublime_plugin
 
-from SublimePythonIDE.lib import pyflakes
-from SublimePythonIDE.server.linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
-from SublimePythonIDE.sublime_python import proxy_for, get_setting, file_or_buffer_name
-from SublimePythonIDE.sublime_python import override_view_setting, get_current_active_view
+from SublimePythonIDE import pyflakes
+from SublimePythonIDE.sublime_python_errors import OffsetError, Pep8Error, Pep8Warning, PythonLintError
+from SublimePythonIDE.sublime_python import proxy_for, get_setting,\
+    file_or_buffer_name, override_view_setting, get_current_active_view
 
 error_underlines = defaultdict(list)
 violation_underlines = defaultdict(list)
@@ -294,7 +294,8 @@ def parse_errors(view, errors, lines, vid):
             continue
 
         add_message(error.lineno, lines, str(error), messages)
-        if isinstance(error, (Pep8Error, Pep8Warning, OffsetError, PythonLintError)):
+        if isinstance(error, (Pep8Error, Pep8Warning, OffsetError,
+                              PythonLintError)):
             underline_range(
                 view, error.lineno, error.offset, underlines
             )
@@ -490,6 +491,7 @@ class PythonPreviousErrorCommand(sublime_plugin.ApplicationCommand):
 
         path = "%s:%d" % (view.file_name(), prev_error_line + 1)
         view.window().open_file(path, sublime.ENCODED_POSITION)
+
 
 ''' Util '''
 

@@ -27,7 +27,7 @@ SYSTEM_PYTHON = None
 CREATION_FLAGS = 0 if os.name != "nt" else 0x08000000
 
 # debugging, see documentation of Proxy.restart()
-DEBUG_PORT = None
+DEBUG_PORT = 8765
 SERVER_DEBUGGING = False
 
 
@@ -72,10 +72,12 @@ def file_or_buffer_name(view):
 
 
 class Proxy(object):
+
     '''Abstracts the external Python processes that do the actual
     work. SublimePython just calls local methods on Proxy objects.
     The Proxy objects start external Python processes, send them heartbeat
     messages, communicate with them and restart them if necessary.'''
+
     def __init__(self, python):
         self.python = python
         self.proc = None
@@ -110,26 +112,33 @@ class Proxy(object):
                 # debug mode one
                 self.port = DEBUG_PORT
                 self.proc = DebugProcDummy()
-                print("started server on user-defined FIXED port %i with %s" % (self.port, self.python))
+                print("started server on user-defined FIXED port %i with %s" %
+                      (self.port, self.python))
             elif SERVER_DEBUGGING:
                 # debug mode two
                 self.port = self.get_free_port()
-                proc_args = [self.python, SERVER_SCRIPT, str(self.port), " --debug"]
-                self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
-                                             stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
+                proc_args = [self.python, SERVER_SCRIPT,
+                             str(self.port), " --debug"]
+                self.proc = subprocess.Popen(
+                    proc_args, cwd=os.path.dirname(self.python),
+                    stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
                 self.queue = Queue()
-                self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port,
-                                                            self.proc.stderr, self.queue)
+                self.stderr_reader = AsynchronousFileReader(
+                    "Server on port %i - STDERR" % self.port,
+                    self.proc.stderr, self.queue)
                 self.stderr_reader.start()
                 sublime.set_timeout_async(self.debug_consume, 1000)
-                print("started server on port %i with %s IN DEBUG MODE" % (self.port, self.python))
+                print("started server on port %i with %s IN DEBUG MODE" %
+                      (self.port, self.python))
             else:
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
                 proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
-                self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
-                                             creationflags=CREATION_FLAGS)
-                print("started server on port %i with %s" % (self.port, self.python))
+                self.proc = subprocess.Popen(
+                    proc_args, cwd=os.path.dirname(self.python),
+                    creationflags=CREATION_FLAGS)
+                print("started server on port %i with %s" %
+                      (self.port, self.python))
 
             # wait 100 ms to make sure python proc is still running
             for i in range(10):
@@ -137,18 +146,25 @@ class Proxy(object):
                 if self.proc.poll():
                     if SERVER_DEBUGGING:
                         print(sys.exc_info())
-                    raise OSError(None, "Python interpretor crashed (using path %s)" % self.python)
+                    raise OSError(
+                        None, "Python interpretor crashed (using path %s)" %
+                        self.python)
 
             # in any case, we also need a local client object
             self.proxy = xmlrpc.client.ServerProxy(
-                'http://%s:%i' % (self.resolve_localhost(), self.port), allow_none=True)
+                'http://%s:%i' % (self.resolve_localhost(), self.port),
+                allow_none=True)
             self.set_heartbeat_timer()
         except OSError as e:
             print("error starting server:", e)
-            print("-----------------------------------------------------------------------------------------------")
-            print("Try to use an absolute path to your projects python interpreter. On Windows try to use forward")
-            print("slashes as in C:/Python27/python.exe or properly escape with double-backslashes""")
-            print("-----------------------------------------------------------------------------------------------")
+            print(
+                "-----------------------------------------------------------------------------------------------")
+            print(
+                "Try to use an absolute path to your projects python interpreter. On Windows try to use forward")
+            print(
+                "slashes as in C:/Python27/python.exe or properly escape with double-backslashes""")
+            print(
+                "-----------------------------------------------------------------------------------------------")
             raise e
 
     def debug_consume(self):
@@ -156,7 +172,8 @@ class Proxy(object):
         If SERVER_DEBUGGING is enabled, is called by ST every 1000ms and prints
         output from server debugging readers.
         '''
-        # Check the queues if we received some output (until there is nothing more to get).
+        # Check the queues if we received some output (until there is nothing
+        # more to get).
         while not self.queue.empty():
             line = self.queue.get()
             print(str(line))
@@ -216,15 +233,18 @@ def system_python():
     if SYSTEM_PYTHON is None:
         try:
             if os.name == "nt":
-                sys_py = subprocess.check_output(["where", "python"], creationflags=CREATION_FLAGS)
-                sys_py = sys_py.split()[0]  # use first result where many might return
+                sys_py = subprocess.check_output(
+                    ["where", "python"], creationflags=CREATION_FLAGS)
+                # use first result where many might return
+                sys_py = sys_py.split()[0]
             else:
                 sys_py = subprocess.check_output(["which", "python"])
         except OSError:
             # some systems (e.g. Windows XP) do not support where/which
             try:
-                sys_py = subprocess.check_output('python -c "import sys; print sys.executable"',
-                                                 creationflags=CREATION_FLAGS, shell=True)
+                sys_py = subprocess.check_output(
+                    'python -c "import sys; print sys.executable"',
+                    creationflags=CREATION_FLAGS, shell=True)
             except OSError:
                 # now we give up
                 sys_py = ""
@@ -342,7 +362,9 @@ def root_folder_for(view):
 
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
+
     '''utility command class for writing into the documentation view'''
+
     def run(self, edit, block=False, **kwargs):
         doc = kwargs['insert_string']
         r = sublime.Region(0, self.view.size())
@@ -351,6 +373,7 @@ class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
 
 
 class AsynchronousFileReader(threading.Thread):
+
     '''
     Helper class to implement asynchronous reading of a file
     in a separate thread. Pushes read lines on a queue to
@@ -373,6 +396,7 @@ class AsynchronousFileReader(threading.Thread):
 
 
 class DebugProcDummy(object):
+
     """Used only for debugging, when the server process is started externally
     """
     def poll(*args):

@@ -9,19 +9,24 @@ import threading
 # relative import as the plugin itself does
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from SublimePythonIDE.server.linter import do_linting
+from linter import do_linting
 
 # furthermore, modify sys.path to import the correct rope version
 if sys.version_info[0] == 2:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python2"))
+        0, os.path.join(os.path.dirname(__file__), "lib", "python2"))
     from SimpleXMLRPCServer import SimpleXMLRPCServer
     from xmlrpclib import Binary
 else:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python3"))
+        0, os.path.join(os.path.dirname(__file__), "lib", "python3"))
     from xmlrpc.server import SimpleXMLRPCServer
     from xmlrpc.client import Binary
+
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "lib", "python_all"))
+
+import jedi
 
 from rope.base import libutils
 from rope.base.project import Project

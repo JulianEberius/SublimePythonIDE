@@ -1,12 +1,15 @@
 import sublime
 import sublime_plugin
 
-from SublimePythonIDE.sublime_python import proxy_for, root_folder_for, get_setting, file_or_buffer_name, GOTO_STACK
+from SublimePythonIDE.sublime_python import proxy_for, root_folder_for,\
+    get_setting, file_or_buffer_name, GOTO_STACK
 
 
 class PythonCompletionsListener(sublime_plugin.EventListener):
+
     '''Retrieves completion proposals from external Python
     processes running Rope'''
+
     def on_query_completions(self, view, prefix, locations):
         if not view.match_selector(locations[0], 'source.python'):
             return []
@@ -39,8 +42,10 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
 
 
 class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
+
     '''Retrieves the docstring for the identifier under the cursor and
     displays it in a new panel.'''
+
     def run(self):
         view = self.window.active_view()
         row, col = view.rowcol(view.sel()[0].a)
@@ -93,7 +98,7 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
                 if active_group == 0:
                     self.window.focus_group(1)
                 else:
-                    self.window.focus_group(active_group-1)
+                    self.window.focus_group(active_group - 1)
 
             self.window.new_file(sublime.TRANSIENT)
             v = self.window.active_view()
@@ -116,9 +121,11 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
 
 
 class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
+
     '''
     Shows the definition of the identifier under the cursor, project-wide.
     '''
+
     def run(self, *args):
         view = self.window.active_view()
         row, col = view.rowcol(view.sel()[0].a)
@@ -157,6 +164,7 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
 
 
 class PythonGoBackCommand(sublime_plugin.WindowCommand):
+
     def run(self, *args):
         if GOTO_STACK:
             file_name, lineno = GOTO_STACK.pop()
