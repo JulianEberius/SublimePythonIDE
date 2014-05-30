@@ -92,7 +92,8 @@ def check(view=None):
         encoding = "utf-8"
     errors = proxy.check_syntax(code, encoding, lint_settings, filename)
     try:
-        errors = pickle.loads(errors.data)
+        if errors:
+            errors = pickle.loads(errors.data)
 
         vid = view.id()
         lines = set()
@@ -105,7 +106,8 @@ def check(view=None):
         warning_underlines[vid] = []
         warning_messages[vid] = {}
 
-        parse_errors(view, errors, lines, vid)
+        if errors:
+            parse_errors(view, errors, lines, vid)
 
         # the result can be a list of errors, or single syntax exception
         try:
@@ -115,7 +117,7 @@ def check(view=None):
 
         update_statusbar(view)
     except Exception as error:
-        print("SublimePythonIDE: No server respose\n{0}".format(error))
+        print("SublimePythonIDE: No server response\n{0}".format(error))
 
 
 def update_statusbar(view):
