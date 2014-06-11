@@ -12,7 +12,7 @@ import os
 import re
 import pickle
 from collections import defaultdict
-from functools import cmp_to_key, wraps
+from functools import cmp_to_key
 
 import sublime
 import sublime_plugin
@@ -20,7 +20,7 @@ import sublime_plugin
 from SublimePythonIDE import pyflakes
 from SublimePythonIDE.sublime_python_errors import OffsetError, Pep8Error, Pep8Warning, PythonLintError
 from SublimePythonIDE.sublime_python import proxy_for, get_setting,\
-    file_or_buffer_name, override_view_setting, get_current_active_view
+    file_or_buffer_name, override_view_setting, get_current_active_view, python_only
 
 error_underlines = defaultdict(list)
 violation_underlines = defaultdict(list)
@@ -120,11 +120,11 @@ def check(view=None):
         print("SublimePythonIDE: No server respose\n{0}".format(error))
 
 
+@python_only
 def update_statusbar(view):
     """Updates the view status bar
     """
-    if (_is_python_syntax(view)
-            and get_setting('python_linting', view, True)):
+    if get_setting('python_linting', view, True):
         lineno = view.rowcol(view.sel()[0].end())[0] + 0
         errors_msg = _get_lineno_msgs(view, lineno)
 
@@ -396,26 +396,6 @@ def _get_gutter_mark_theme(view, lint_type):
     return image
 
 
-def _is_python_syntax(view):
-    """Return true if we are in a Python syntax defined view
-    """
-
-    syntax = view.settings().get('syntax')
-    return bool(syntax and ("Python" in syntax))
-
-
-def python_only(func):
-    """Decorator that make sure we call the given function in python only
-    """
-
-    @wraps(func)
-    def wrapper(self, view):
-        if _is_python_syntax(view) and not view.is_scratch():
-            return func(self, view)
-
-    return wrapper
-
-
 class PythonLintingListener(sublime_plugin.EventListener):
 
     """This class hooks into various Sublime Text events to check
@@ -446,6 +426,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
 
         check(view)
 
+    @python_only
     def on_selection_modified_async(self, view):
         """Update status bar text when cursor
         changes spot.

@@ -8,6 +8,8 @@ import xmlrpc.client
 import sublime
 import sublime_plugin
 from queue import Queue
+from functools import wraps
+from inspect import getargspec
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
@@ -359,6 +361,38 @@ def root_folder_for(view):
     return root_path
 
 '''Utilities'''
+
+
+def _is_python_syntax(view):
+    """Return true if we are in a Python syntax defined view
+    """
+
+    syntax = view.settings().get('syntax')
+    return bool(syntax and ("Python" in syntax))
+
+
+def python_only(func):
+    """Decorator that make sure we call the given function in python only
+    If func has only one argument we assume it to be the view.
+    If it has more than one argument, we assume the view to be the second argument,
+    the first usually being "self".
+    """
+
+    num_args = len(getargspec(func).args)
+
+    if num_args == 1:
+        @wraps(func)
+        def wrapper1(view):
+            if _is_python_syntax(view) and not view.is_scratch():
+                return func(view)
+        return wrapper1
+
+    else:
+        @wraps(func)
+        def wrapperN(self, view, *args):
+            if _is_python_syntax(view) and not view.is_scratch():
+                return func(self, view, *args)
+        return wrapperN
 
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):

@@ -2,7 +2,7 @@ import sublime
 import sublime_plugin
 
 from SublimePythonIDE.sublime_python import proxy_for, root_folder_for,\
-    get_setting, file_or_buffer_name, GOTO_STACK
+    get_setting, file_or_buffer_name, GOTO_STACK, python_only
 
 
 class PythonCompletionsListener(sublime_plugin.EventListener):
@@ -10,9 +10,8 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
     '''Retrieves completion proposals from external Python
     processes running Rope'''
 
+    @python_only
     def on_query_completions(self, view, prefix, locations):
-        if not view.match_selector(locations[0], 'source.python'):
-            return []
         path = file_or_buffer_name(view)
         source = view.substr(sublime.Region(0, view.size()))
         loc = view.rowcol(locations[0])
@@ -33,6 +32,7 @@ class PythonCompletionsListener(sublime_plugin.EventListener):
             return (proposals, completion_flags)
         return proposals
 
+    @python_only
     def on_post_save_async(self, view, *args):
         proxy = proxy_for(view)
         if not proxy:
