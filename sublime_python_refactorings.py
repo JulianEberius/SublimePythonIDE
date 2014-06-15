@@ -95,3 +95,28 @@ class PythonExtractMethod(PythonAbstractRefactoring, sublime_plugin.TextCommand)
 
     def refactor(self, proxy, input_str, project_path, file_path, start, end, source):
         proxy.extract_method(project_path, file_path, start, end, source, input_str)
+
+
+class PythonOrganizeImports(sublime_plugin.TextCommand):
+    '''
+    Organizes the imports of the current view.
+
+    Tries to saves the view beforehand
+    and organizes the imports only on a successful save.
+    '''
+    def run(self, edit):
+        if self.view.is_dirty():
+            self.view.run_command("save")
+        if self.view.file_name():
+            row, col = self.view.rowcol(self.view.sel()[0].a)
+            path = file_or_buffer_name(self.view)
+            all_view = sublime.Region(0, self.view.size())
+            source = self.view.substr(all_view)
+
+            proxy = proxy_for(self.view)
+            if not proxy:
+                return
+            organized_source = proxy.organize_imports(source, root_folder_for(self.view), path)
+            self.view.replace(edit, all_view, organized_source)
+            # end with a saved view to be compatible with the other refactorings
+            self.view.run_command("save")

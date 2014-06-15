@@ -32,6 +32,7 @@ from rope.base import libutils
 from rope.base.project import Project
 from rope.refactor.rename import Rename
 from rope.refactor.extract import ExtractMethod
+from rope.refactor.importutils import ImportTools
 from rope.base.exceptions import ModuleSyntaxError
 from rope.contrib.codeassist import (
     get_doc, get_definition_location
@@ -254,6 +255,22 @@ class RopeFunctionsMixin(object):
         rename = ExtractMethod(project, resource, start, end)
         changes = rename.get_changes(new_name)
         project.do(changes)
+
+    def organize_imports(self, source, project_path, file_path):
+        """
+        Organize imports in source
+
+        :param source: the document source
+        :param project_path: the actual project_path
+        :param file_path: the actual file path
+        :returns: a string containing the source with imports fully organized
+        """
+        project, resource = self._get_resource(project_path, file_path, source)
+        pycore = project.pycore
+        import_tools = ImportTools(pycore)
+        pymodule = pycore.resource_to_pyobject(resource)
+        organized_source = import_tools.organize_imports(pymodule)
+        return organized_source
 
     def _proposal_string(self, p):
         """
