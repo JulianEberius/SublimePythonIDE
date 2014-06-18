@@ -120,3 +120,31 @@ class PythonOrganizeImports(sublime_plugin.TextCommand):
             self.view.replace(edit, all_view, organized_source)
             # end with a saved view to be compatible with the other refactorings
             self.view.run_command("save")
+
+
+class PythonOrganizeImportsOnSave(sublime_plugin.EventListener):
+    '''
+    Applies the organize imports refactoring everytime a file is saved.
+
+    Only works if "python_organize_imports_on_save" is "True" in the project settings.
+    That can be achieved by editing the project to have:
+
+    "settings": {
+        ...
+        "python_organize_imports_on_save": true
+    }
+    '''
+
+    _post_save_is_on = True
+
+    def on_post_save(self, view):
+        if view.settings().get("python_organize_imports_on_save") is True:
+            # since the refactoring itself calls "save"
+            # the event has to be turned off/on
+            # otherwise we would enter an infinite recursion
+            if self._post_save_is_on:
+                try:
+                    self._post_save_is_on = False
+                    view.run_command("python_organize_imports")
+                finally:
+                    self._post_save_is_on = True

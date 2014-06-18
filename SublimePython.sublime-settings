@@ -30,5 +30,8 @@
     "pep8": true,
     "pep8_ignore": [],
     "pep8_max_line_length": 80,
-    "pyflakes_ignore": []
+    "pyflakes_ignore": [],
+
+    // If the organize imports refactoring should be called on every file save
+    "python_organize_imports_on_save": false
 }
