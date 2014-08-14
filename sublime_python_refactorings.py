@@ -95,3 +95,56 @@ class PythonExtractMethod(PythonAbstractRefactoring, sublime_plugin.TextCommand)
 
     def refactor(self, proxy, input_str, project_path, file_path, start, end, source):
         proxy.extract_method(project_path, file_path, start, end, source, input_str)
+
+
+class PythonOrganizeImports(sublime_plugin.TextCommand):
+    '''
+    Organizes the imports of the current view.
+
+    Tries to saves the view beforehand
+    and organizes the imports only on a successful save.
+    '''
+    def run(self, edit):
+        if self.view.is_dirty():
+            self.view.run_command("save")
+        if self.view.file_name():
+            row, col = self.view.rowcol(self.view.sel()[0].a)
+            path = file_or_buffer_name(self.view)
+            all_view = sublime.Region(0, self.view.size())
+            source = self.view.substr(all_view)
+
+            proxy = proxy_for(self.view)
+            if not proxy:
+                return
+            organized_source = proxy.organize_imports(source, root_folder_for(self.view), path)
+            self.view.replace(edit, all_view, organized_source)
+            # end with a saved view to be compatible with the other refactorings
+            self.view.run_command("save")
+
+
+class PythonOrganizeImportsOnSave(sublime_plugin.EventListener):
+    '''
+    Applies the organize imports refactoring everytime a file is saved.
+
+    Only works if "python_organize_imports_on_save" is "True" in the project settings.
+    That can be achieved by editing the project to have:
+
+    "settings": {
+        ...
+        "python_organize_imports_on_save": true
+    }
+    '''
+
+    _post_save_is_on = True
+
+    def on_post_save(self, view):
+        if view.settings().get("python_organize_imports_on_save") is True:
+            # since the refactoring itself calls "save"
+            # the event has to be turned off/on
+            # otherwise we would enter an infinite recursion
+            if self._post_save_is_on:
+                try:
+                    self._post_save_is_on = False
+                    view.run_command("python_organize_imports")
+                finally:
+                    self._post_save_is_on = True

@@ -1,3 +1,4 @@
+
 [
     {
         "caption": "Python: Go to definition",
@@ -26,5 +27,9 @@
     {
         "caption": "Python Refactor: Extract Method",
         "command": "python_extract_method"
+    },
+    {
+        "caption": "Python Refactor: Organize Imports",
+        "command": "python_organize_imports"
     },
 ]
