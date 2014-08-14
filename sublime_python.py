@@ -11,6 +11,8 @@ from queue import Queue
 from functools import wraps
 from inspect import getargspec
 
+from SublimePythonIDE import sublime_python_colors
+
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
 # contains proxy objects for external Python processes, by interpreter used
@@ -42,6 +44,13 @@ HEARTBEAT_INTERVALL = 9
 DRAW_TYPE = 4 | 32
 NO_ROOT_PATH = -1
 DEFAULT_VENV_DIR_NAME = "venv"
+
+
+def plugin_loaded():
+    _update_color_scheme()
+
+    s = sublime.load_settings('SublimePython.sublime-settings')
+    s.add_on_change('sublimepython-pref-settings', _update_color_scheme)
 
 
 def get_setting(key, view=None, default_value=None):
@@ -393,6 +402,17 @@ def python_only(func):
             if _is_python_syntax(view) and not view.is_scratch():
                 return func(self, view, *args)
         return wrapperN
+
+
+def _update_color_scheme():
+    '''Updates the current color scheme to include error and warning
+    scopes used by the linting features'''
+
+    colors = {
+        "warning": get_setting("warning_color"),
+        "error": get_setting("error_color")
+    }
+    sublime_python_colors.update_color_scheme(colors)
 
 
 class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):

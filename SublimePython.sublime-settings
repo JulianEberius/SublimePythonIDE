@@ -27,7 +27,14 @@
     "python_linter_mark_style": "outline", // "none" or "outline"
     "python_linter_gutter_marks": true,
     "python_linter_gutter_marks_theme": "simple", // see folder gutter_mark_themes
+
+    // linting colors
+    "warning_color":"EDBA00",
+    "error_color":"DA2000",
+
     "pep8": true,
+    // disable certain pep8 errors
+    // overview of possible error codes at http://pep8.readthedocs.org/en/latest/intro.html#error-codes
     "pep8_ignore": [],
     "pep8_max_line_length": 80,
     "pyflakes_ignore": [],

@@ -159,14 +159,14 @@ def _update_lint_marks(view, lines):
 
     _erase_lint_marks(view)
 
-    for name, underlines in _get_types(view).items():
-        if len(underlines) > 0:
-            view.add_regions(
-                'lint-underline-{name}'.format(name=name),
-                underlines,
-                'python_linter.underline.{name}'.format(name=name),
-                flags=sublime.DRAW_EMPTY_AS_OVERWRITE
-            )
+    # for name, underlines in _get_types(view).items():
+    #     if len(underlines) > 0:
+    #         view.add_regions(
+    #             'lint-underline-{name}'.format(name=name),
+    #             underlines,
+    #             scope_name(name),
+    #             flags=sublime.DRAW_EMPTY_AS_OVERWRITE
+    #         )
 
     if len(lines) > 0:
         outlines = _get_outlines(view)
@@ -175,12 +175,21 @@ def _update_lint_marks(view, lines):
             args = [
                 'lint-outlines-{0}'.format(lint_type),
                 outlines[lint_type],
-                'python_linter.outline.{0}'.format(lint_type),
+                scope_name(lint_type),
                 _get_gutter_mark_theme(view, lint_type),
                 outline_style.get(style, sublime.DRAW_OUTLINED)
             ]
 
             view.add_regions(*args)
+
+
+def scope_name(error_name):
+    result = {
+        "violation": "sublimepythonide.mark.error",
+        "illegal": "sublimepythonide.mark.error",
+        "warning": "sublimepythonide.mark.warning",
+    }.get(error_name)
+    return result
 
 
 def add_message(lineno, lines, message, messages):
@@ -308,7 +317,8 @@ def parse_errors(view, errors, lines, vid):
                 pyflakes.messages.UndefinedExport,
                 pyflakes.messages.UndefinedLocal,
                 pyflakes.messages.Redefined,
-                pyflakes.messages.UnusedVariable)):
+                pyflakes.messages.UnusedVariable,
+                pyflakes.messages.RedefinedInListComp)):
             underline_word(error.lineno, error.message_args[0], underlines)
         elif isinstance(error, pyflakes.messages.ImportShadowedByLoopVar):
             underline_for_var(
