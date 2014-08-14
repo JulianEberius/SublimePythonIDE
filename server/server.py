@@ -5,25 +5,37 @@ import logging
 import tempfile
 import threading
 
+# add path above SublimePythonIDE to sys.path to be able to do the same
+# relative import as the plugin itself does
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from linter import do_linting
+
+# furthermore, modify sys.path to import the correct rope version
 if sys.version_info[0] == 2:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python2"))
+        0, os.path.join(os.path.dirname(__file__), "lib", "python2"))
     from SimpleXMLRPCServer import SimpleXMLRPCServer
     from xmlrpclib import Binary
 else:
     sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "lib", "python3"))
+        0, os.path.join(os.path.dirname(__file__), "lib", "python3"))
     from xmlrpc.server import SimpleXMLRPCServer
     from xmlrpc.client import Binary
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
-from linter import do_linting
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "lib", "python_all"))
+
+import jedi
 
 from rope.base import libutils
 from rope.base.project import Project
+from rope.refactor.rename import Rename
+from rope.refactor.extract import ExtractMethod
+from rope.refactor.importutils import ImportTools
 from rope.base.exceptions import ModuleSyntaxError
 from rope.contrib.codeassist import (
-    code_assist, sorted_proposals, get_doc, get_definition_location
+    get_doc, get_definition_location
 )
 
 # global state of the server process
@@ -157,9 +169,10 @@ class RopeFunctionsMixin(object):
         project, resource = self._get_resource(project_path, file_path, source)
 
         try:
-            proposals = code_assist(
-                project, source, loc, resource=resource, maxfixes=3)
-            proposals = sorted_proposals(proposals)
+            row, col = loc
+            row += 1
+            script = jedi.Script(source, row, col, file_path)
+            proposals = script.completions()
         except ModuleSyntaxError:
             proposals = []
         except Exception:
@@ -172,6 +185,7 @@ class RopeFunctionsMixin(object):
                 for p in proposals if p.name != 'self='
             ]
 
+        jedi.cache.clear_caches()
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
@@ -230,6 +244,34 @@ class RopeFunctionsMixin(object):
             project, file_path = self.project_for(project_path, file_path)
             libutils.report_change(project, file_path, "")
 
+    def rename(self, project_path, file_path, loc, source, new_name):
+        project, resource = self._get_resource(project_path, file_path, source)
+        rename = Rename(project, resource, loc)
+        changes = rename.get_changes(new_name, in_hierarchy=True)
+        project.do(changes)
+
+    def extract_method(self, project_path, file_path, start, end, source, new_name):
+        project, resource = self._get_resource(project_path, file_path, source)
+        rename = ExtractMethod(project, resource, start, end)
+        changes = rename.get_changes(new_name)
+        project.do(changes)
+
+    def organize_imports(self, source, project_path, file_path):
+        """
+        Organize imports in source
+
+        :param source: the document source
+        :param project_path: the actual project_path
+        :param file_path: the actual file path
+        :returns: a string containing the source with imports fully organized
+        """
+        project, resource = self._get_resource(project_path, file_path, source)
+        pycore = project.pycore
+        import_tools = ImportTools(pycore)
+        pymodule = pycore.resource_to_pyobject(resource)
+        organized_source = import_tools.organize_imports(pymodule)
+        return organized_source
+
     def _proposal_string(self, p):
         """
         Build and return a string for the proposals of completions
@@ -237,31 +279,14 @@ class RopeFunctionsMixin(object):
         :param p: the original proposal structure
         """
 
-        if p.parameters:
-            params = [par for par in p.parameters if par != 'self']
-            result = '{name}({params})'.format(
-                name=p.name,
-                params=', '.join(param for param in params)
-            )
-        else:
-            result = p.name
-
-        return '{result}\t({scope}, {type})'.format(
-            result=result, scope=p.scope, type=p.type)
+        return '{result}\t({type})'.format(
+            result=p.name, type=p.type)
 
     def _insert_string(self, p):
         """
         """
 
-        if p.parameters:
-            params = [par for par in p.parameters if par != 'self']
-            param_snippet = ", ".join(
-                "${%i:%s}" %
-                (idx + 1, param) for idx, param in enumerate(params))
-            result = "%s(%s)" % (p.name, param_snippet)
-        else:
-            result = p.name
-
+        result = p.name
         return result
 
     def _get_resource(self, project_path, file_path, source):
@@ -374,24 +399,24 @@ class XMLRPCServerThread(threading.Thread):
 
 
 if __name__ == '__main__':
-        try:
-            # single argument to this process should be the port to listen on
-            port = int(sys.argv[1])
-            # second argument may be "--debug" in which case the server prints to stderr
-            debug = False
-            if len(sys.argv) > 2 and sys.argv[2].strip() == "--debug":
-                debug = True
+    try:
+        # single argument to this process should be the port to listen on
+        port = int(sys.argv[1])
+        # second argument may be "--debug" in which case the server prints to stderr
+        debug = False
+        if len(sys.argv) > 2 and sys.argv[2].strip() == "--debug":
+            debug = True
 
-            # the SimpleXMLRPCServer is run in a new thread
-            server_thread = XMLRPCServerThread(port, debug)
-            server_thread.start()
+        # the SimpleXMLRPCServer is run in a new thread
+        server_thread = XMLRPCServerThread(port, debug)
+        server_thread.start()
 
-            # the main thread checks for heartbeat messages
-            while 1:
-                time.sleep(HEARTBEAT_TIMEOUT)
-                if time.time() - last_heartbeat > HEARTBEAT_TIMEOUT:
-                    sys.exit()
-        except Exception as e:
-            sys.stderr.write("SublimePythonIDE Server Error: %s\n" % str(e))
-            import traceback
-            traceback.print_exc()
+        # the main thread checks for heartbeat messages
+        while 1:
+            time.sleep(HEARTBEAT_TIMEOUT)
+            if time.time() - last_heartbeat > HEARTBEAT_TIMEOUT:
+                sys.exit()
+    except Exception as e:
+        sys.stderr.write("SublimePythonIDE Server Error: %s\n" % str(e))
+        import traceback
+        traceback.print_exc()

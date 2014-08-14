@@ -10,21 +10,17 @@ Furthermore, the error highlighting code is also adapted from there.
 
 import os
 import re
-import sys
 import pickle
 from collections import defaultdict
-from functools import cmp_to_key, wraps
+from functools import cmp_to_key
 
 import sublime
 import sublime_plugin
 
-
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-import pyflakes
-from linter import Pep8Error, Pep8Warning, OffsetError, PythonLintError
-from sublime_python import proxy_for, get_setting, file_or_buffer_name
-from sublime_python import override_view_setting, get_current_active_view
+from SublimePythonIDE import pyflakes
+from SublimePythonIDE.sublime_python_errors import OffsetError, Pep8Error, Pep8Warning, PythonLintError
+from SublimePythonIDE.sublime_python import proxy_for, get_setting,\
+    file_or_buffer_name, override_view_setting, get_current_active_view, python_only
 
 error_underlines = defaultdict(list)
 violation_underlines = defaultdict(list)
@@ -33,6 +29,7 @@ error_messages = defaultdict(dict)
 violation_messages = defaultdict(dict)
 warning_messages = defaultdict(dict)
 
+erroneous_lines = dict()
 
 error_level_mapper = {
     'E': (error_messages, error_underlines),
@@ -109,6 +106,11 @@ def check(view=None):
         if errors:
             parse_errors(view, errors, lines, vid)
 
+        erroneous_lines[vid] = ListWithPointer(sorted(set(
+            list(error_messages[vid].keys()) +
+            list(violation_messages[vid].keys()) +
+            list(warning_messages[vid].keys()))))
+
         # the result can be a list of errors, or single syntax exception
         try:
             _update_lint_marks(view, lines)
@@ -120,11 +122,11 @@ def check(view=None):
         print("SublimePythonIDE: No server response\n{0}".format(error))
 
 
+@python_only
 def update_statusbar(view):
     """Updates the view status bar
     """
-    if (_is_python_syntax(view)
-            and get_setting('python_linting', view, True)):
+    if get_setting('python_linting', view, True):
         lineno = view.rowcol(view.sel()[0].end())[0] + 0
         errors_msg = _get_lineno_msgs(view, lineno)
 
@@ -294,7 +296,8 @@ def parse_errors(view, errors, lines, vid):
             continue
 
         add_message(error.lineno, lines, str(error), messages)
-        if isinstance(error, (Pep8Error, Pep8Warning, OffsetError, PythonLintError)):
+        if isinstance(error, (Pep8Error, Pep8Warning, OffsetError,
+                              PythonLintError)):
             underline_range(
                 view, error.lineno, error.offset, underlines
             )
@@ -395,26 +398,6 @@ def _get_gutter_mark_theme(view, lint_type):
     return image
 
 
-def _is_python_syntax(view):
-    """Return true if we are in a Python syntax defined view
-    """
-
-    syntax = view.settings().get('syntax')
-    return bool(syntax and ("Python" in syntax))
-
-
-def python_only(func):
-    """Decorator that make sure we call the given function in python only
-    """
-
-    @wraps(func)
-    def wrapper(self, view):
-        if _is_python_syntax(view) and not view.is_scratch():
-            return func(self, view)
-
-    return wrapper
-
-
 class PythonLintingListener(sublime_plugin.EventListener):
 
     """This class hooks into various Sublime Text events to check
@@ -445,6 +428,7 @@ class PythonLintingListener(sublime_plugin.EventListener):
 
         check(view)
 
+    @python_only
     def on_selection_modified_async(self, view):
         """Update status bar text when cursor
         changes spot.
@@ -468,3 +452,55 @@ class PythonEnablePep8Command(sublime_plugin.ApplicationCommand):
         view = get_current_active_view()
         override_view_setting('pep8', True, view)
         check(view)
+
+
+class PythonNextErrorCommand(sublime_plugin.ApplicationCommand):
+
+    def run(self, *args):
+        view = get_current_active_view()
+        view_error_lines = erroneous_lines[view.id()]
+        next_error_line = view_error_lines.next()
+
+        path = "%s:%d" % (view.file_name(), next_error_line + 1)
+        view.window().open_file(path, sublime.ENCODED_POSITION)
+
+
+class PythonPreviousErrorCommand(sublime_plugin.ApplicationCommand):
+
+    def run(self, *args):
+        view = get_current_active_view()
+        view_error_lines = erroneous_lines[view.id()]
+        prev_error_line = view_error_lines.previous()
+
+        path = "%s:%d" % (view.file_name(), prev_error_line + 1)
+        view.window().open_file(path, sublime.ENCODED_POSITION)
+
+
+''' Util '''
+
+
+class ListWithPointer(list):
+
+    FORWARD = 0
+    BACKWARD = 1
+
+    def __init__(self, data=[]):
+        list.__init__(self, data)
+        self.pointer = 0
+        self.direction = self.FORWARD
+
+    def next(self):
+        if self.direction == self.BACKWARD:
+            self.direction = self.FORWARD
+            self.pointer = (self.pointer + 1) % len(self)
+        result = self.__getitem__(self.pointer)
+        self.pointer = (self.pointer + 1) % len(self)
+        return result
+
+    def previous(self):
+        if self.direction == self.FORWARD:
+            self.direction = self.BACKWARD
+            self.pointer = (self.pointer - 1) % len(self)
+        self.pointer = (self.pointer - 1) % len(self)
+        result = self.__getitem__(self.pointer)
+        return result

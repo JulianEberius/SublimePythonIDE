@@ -8,11 +8,8 @@ import xmlrpc.client
 import sublime
 import sublime_plugin
 from queue import Queue
-
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
-from util import AsynchronousFileReader, DebugProcDummy
+from functools import wraps
+from inspect import getargspec
 
 # contains root paths for each view, see root_folder_for()
 ROOT_PATHS = {}
@@ -77,10 +74,12 @@ def file_or_buffer_name(view):
 
 
 class Proxy(object):
+
     '''Abstracts the external Python processes that do the actual
     work. SublimePython just calls local methods on Proxy objects.
     The Proxy objects start external Python processes, send them heartbeat
     messages, communicate with them and restart them if necessary.'''
+
     def __init__(self, python):
         self.python = python
         self.proc = None
@@ -115,26 +114,33 @@ class Proxy(object):
                 # debug mode one
                 self.port = DEBUG_PORT
                 self.proc = DebugProcDummy()
-                print("started server on user-defined FIXED port %i with %s" % (self.port, self.python))
+                print("started server on user-defined FIXED port %i with %s" %
+                      (self.port, self.python))
             elif SERVER_DEBUGGING:
                 # debug mode two
                 self.port = self.get_free_port()
-                proc_args = [self.python, SERVER_SCRIPT, str(self.port), " --debug"]
-                self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
-                                             stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
+                proc_args = [self.python, SERVER_SCRIPT,
+                             str(self.port), " --debug"]
+                self.proc = subprocess.Popen(
+                    proc_args, cwd=os.path.dirname(self.python),
+                    stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
                 self.queue = Queue()
-                self.stderr_reader = AsynchronousFileReader("Server on port %i - STDERR" % self.port,
-                                                            self.proc.stderr, self.queue)
+                self.stderr_reader = AsynchronousFileReader(
+                    "Server on port %i - STDERR" % self.port,
+                    self.proc.stderr, self.queue)
                 self.stderr_reader.start()
                 sublime.set_timeout_async(self.debug_consume, 1000)
-                print("started server on port %i with %s IN DEBUG MODE" % (self.port, self.python))
+                print("started server on port %i with %s IN DEBUG MODE" %
+                      (self.port, self.python))
             else:
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
                 proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
-                self.proc = subprocess.Popen(proc_args, cwd=os.path.dirname(self.python),
-                                             creationflags=CREATION_FLAGS)
-                print("started server on port %i with %s" % (self.port, self.python))
+                self.proc = subprocess.Popen(
+                    proc_args, cwd=os.path.dirname(self.python),
+                    creationflags=CREATION_FLAGS)
+                print("started server on port %i with %s" %
+                      (self.port, self.python))
 
             # wait 100 ms to make sure python proc is still running
             for i in range(10):
@@ -142,18 +148,25 @@ class Proxy(object):
                 if self.proc.poll():
                     if SERVER_DEBUGGING:
                         print(sys.exc_info())
-                    raise OSError(None, "Python interpretor crashed (using path %s)" % self.python)
+                    raise OSError(
+                        None, "Python interpretor crashed (using path %s)" %
+                        self.python)
 
             # in any case, we also need a local client object
             self.proxy = xmlrpc.client.ServerProxy(
-                'http://%s:%i' % (self.resolve_localhost(), self.port), allow_none=True)
+                'http://%s:%i' % (self.resolve_localhost(), self.port),
+                allow_none=True)
             self.set_heartbeat_timer()
         except OSError as e:
             print("error starting server:", e)
-            print("-----------------------------------------------------------------------------------------------")
-            print("Try to use an absolute path to your projects python interpreter. On Windows try to use forward")
-            print("slashes as in C:/Python27/python.exe or properly escape with double-backslashes""")
-            print("-----------------------------------------------------------------------------------------------")
+            print(
+                "-----------------------------------------------------------------------------------------------")
+            print(
+                "Try to use an absolute path to your projects python interpreter. On Windows try to use forward")
+            print(
+                "slashes as in C:/Python27/python.exe or properly escape with double-backslashes""")
+            print(
+                "-----------------------------------------------------------------------------------------------")
             raise e
 
     def debug_consume(self):
@@ -161,7 +174,8 @@ class Proxy(object):
         If SERVER_DEBUGGING is enabled, is called by ST every 1000ms and prints
         output from server debugging readers.
         '''
-        # Check the queues if we received some output (until there is nothing more to get).
+        # Check the queues if we received some output (until there is nothing
+        # more to get).
         while not self.queue.empty():
             line = self.queue.get()
             print(str(line))
@@ -221,15 +235,18 @@ def system_python():
     if SYSTEM_PYTHON is None:
         try:
             if os.name == "nt":
-                sys_py = subprocess.check_output(["where", "python"], creationflags=CREATION_FLAGS)
-                sys_py = sys_py.split()[0]  # use first result where many might return
+                sys_py = subprocess.check_output(
+                    ["where", "python"], creationflags=CREATION_FLAGS)
+                # use first result where many might return
+                sys_py = sys_py.splitlines()[0]
             else:
                 sys_py = subprocess.check_output(["which", "python"])
         except OSError:
             # some systems (e.g. Windows XP) do not support where/which
             try:
-                sys_py = subprocess.check_output('python -c "import sys; print sys.executable"',
-                                                 creationflags=CREATION_FLAGS, shell=True)
+                sys_py = subprocess.check_output(
+                    'python -c "import sys; print sys.executable"',
+                    creationflags=CREATION_FLAGS, shell=True)
             except OSError:
                 # now we give up
                 sys_py = ""
@@ -343,175 +360,81 @@ def root_folder_for(view):
 
     return root_path
 
-
-class PythonStopServerCommand(sublime_plugin.WindowCommand):
-    '''stops the server this view is connected to. unused'''
-    def run(self, *args):
-        with PROXY_LOCK:
-            python = get_setting("python_interpreter", "")
-            if python == "":
-                python = "python"
-            proxy = PROXIES.get(python, None)
-            if proxy:
-                proxy.stop()
-                del PROXIES[python]
+'''Utilities'''
 
 
-class PythonCompletionsListener(sublime_plugin.EventListener):
-    '''Retrieves completion proposals from external Python
-    processes running Rope'''
-    def on_query_completions(self, view, prefix, locations):
-        if not view.match_selector(locations[0], 'source.python'):
-            return []
-        path = file_or_buffer_name(view)
-        source = view.substr(sublime.Region(0, view.size()))
-        loc = locations[0]
-        # t0 = time.time()
-        proxy = proxy_for(view)
-        if not proxy:
-            return []
-        proposals = proxy.completions(source, root_folder_for(view), path, loc)
-        # proposals = (
-        #   proxy.profile_completions(source, root_folder_for(view), path, loc)
-        # )
-        # print("+++", time.time() - t0)
-        if proposals:
-            completion_flags = (
-                sublime.INHIBIT_WORD_COMPLETIONS |
-                sublime.INHIBIT_EXPLICIT_COMPLETIONS
-            )
-            return (proposals, completion_flags)
-        return proposals
+def _is_python_syntax(view):
+    """Return true if we are in a Python syntax defined view
+    """
 
-    def on_post_save_async(self, view, *args):
-        proxy = proxy_for(view)
-        if not proxy:
-            return
-        path = file_or_buffer_name(view)
-        proxy.report_changed(root_folder_for(view), path)
+    syntax = view.settings().get('syntax')
+    return bool(syntax and ("Python" in syntax))
 
 
-class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
-    '''Retrieves the docstring for the identifier under the cursor and
-    displays it in a new panel.'''
+def python_only(func):
+    """Decorator that make sure we call the given function in python only
+    If func has only one argument we assume it to be the view.
+    If it has more than one argument, we assume the view to be the second argument,
+    the first usually being "self".
+    """
+
+    num_args = len(getargspec(func).args)
+
+    if num_args == 1:
+        @wraps(func)
+        def wrapper1(view):
+            if _is_python_syntax(view) and not view.is_scratch():
+                return func(view)
+        return wrapper1
+
+    else:
+        @wraps(func)
+        def wrapperN(self, view, *args):
+            if _is_python_syntax(view) and not view.is_scratch():
+                return func(self, view, *args)
+        return wrapperN
+
+
+class SimpleClearAndInsertCommand(sublime_plugin.TextCommand):
+
+    '''utility command class for writing into the documentation view'''
+
+    def run(self, edit, block=False, **kwargs):
+        doc = kwargs['insert_string']
+        r = sublime.Region(0, self.view.size())
+        self.view.erase(edit, r)
+        self.view.insert(edit, 0, doc)
+
+
+class AsynchronousFileReader(threading.Thread):
+
+    '''
+    Helper class to implement asynchronous reading of a file
+    in a separate thread. Pushes read lines on a queue to
+    be consumed in another thread.
+
+    Used for reading stderr output of the server.
+    '''
+
+    def __init__(self, name, fd, queue):
+        threading.Thread.__init__(self)
+        self.name = name
+        self._fd = fd
+        self._queue = queue
+
     def run(self):
-        view = self.window.active_view()
-        row, col = view.rowcol(view.sel()[0].a)
-        offset = view.text_point(row, col)
-        path = file_or_buffer_name(view)
-        source = view.substr(sublime.Region(0, view.size()))
-        if view.substr(offset) in [u'(', u')']:
-            offset = view.text_point(row, col - 1)
+        '''The body of the tread: read lines and put them on the queue.'''
+        for line in iter(self._fd.readline, ''):
+            if line:
+                self._queue.put("{0}: {1}".format(self.name, line))
 
-        proxy = proxy_for(view)
-        if not proxy:
-            return
-        doc = proxy.documentation(source, root_folder_for(view), path, offset)
-        if doc:
-            open_pydoc_in_view = get_setting("open_pydoc_in_view")
-            if open_pydoc_in_view:
-                self.display_docs_in_view(doc)
-            else:
-                self.display_docs_in_panel(view, doc)
-        else:
-            word = view.substr(view.word(offset))
-            self.notify_no_documentation(view, word)
 
-    def notify_no_documentation(self, view, word):
-        view.set_status(
-            "rope_documentation_error",
-            "No documentation found for %s" % word
-        )
+class DebugProcDummy(object):
 
-        def clear_status_callback():
-            view.erase_status("rope_documentation_error")
-        sublime.set_timeout_async(clear_status_callback, 5000)
-
-    def display_docs_in_panel(self, view, doc):
-        out_view = view.window().get_output_panel(
-            "rope_python_documentation")
-        out_view.run_command("simple_clear_and_insert", {"insert_string": doc})
-        view.window().run_command(
-            "show_panel", {"panel": "output.rope_python_documentation"})
-
-    def display_docs_in_view(self, doc):
-        create_view_in_same_group = get_setting("create_view_in_same_group")
-
-        v = self.find_pydoc_view()
-        if not v:
-            active_group = self.window.active_group()
-            if not create_view_in_same_group:
-                if self.window.num_groups() == 1:
-                    self.window.run_command('new_pane', {'move': False})
-                if active_group == 0:
-                    self.window.focus_group(1)
-                else:
-                    self.window.focus_group(active_group-1)
-
-            self.window.new_file(sublime.TRANSIENT)
-            v = self.window.active_view()
-            v.set_name("*pydoc*")
-            v.set_scratch(True)
-
-        v.set_read_only(False)
-        v.run_command("simple_clear_and_insert", {"insert_string": doc})
-        v.set_read_only(True)
-        self.window.focus_view(v)
-
-    def find_pydoc_view(self):
-        '''
-        Return view named *pydoc* if exists, None otherwise.
-        '''
-        for w in self.window.views():
-            if w.name() == "*pydoc*":
-                return w
+    """Used only for debugging, when the server process is started externally
+    """
+    def poll(*args):
         return None
 
-
-class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
-    '''
-    Shows the definition of the identifier under the cursor, project-wide.
-    '''
-    def run(self, *args):
-        view = self.window.active_view()
-        row, col = view.rowcol(view.sel()[0].a)
-        offset = view.text_point(row, col)
-        path = file_or_buffer_name(view)
-        source = view.substr(sublime.Region(0, view.size()))
-        if view.substr(offset) in [u'(', u')']:
-            offset = view.text_point(row, col - 1)
-
-        proxy = proxy_for(view)
-        if not proxy:
-            return
-        def_result = proxy.definition_location(
-            source, root_folder_for(view), path, offset)
-
-        if not def_result or def_result == [None, None]:
-            return
-
-        target_path, target_lineno = def_result
-        current_lineno = view.rowcol(view.sel()[0].end())[0] + 1
-
-        if None not in (path, target_path, target_lineno):
-            self.save_pos(file_or_buffer_name(view), current_lineno)
-            path = target_path + ":" + str(target_lineno)
-            self.window.open_file(path, sublime.ENCODED_POSITION)
-        elif target_lineno is not None:
-            self.save_pos(file_or_buffer_name(view), current_lineno)
-            path = file_or_buffer_name(view) + ":" + str(target_lineno)
-            self.window.open_file(path, sublime.ENCODED_POSITION)
-        else:
-            # fail silently (user selected whitespace, etc)
-            pass
-
-    def save_pos(self, file_path, lineno):
-        GOTO_STACK.append((file_path, lineno))
-
-
-class PythonGoBackCommand(sublime_plugin.WindowCommand):
-    def run(self, *args):
-        if GOTO_STACK:
-            file_name, lineno = GOTO_STACK.pop()
-            path = file_name + ":" + str(lineno)
-            self.window.open_file(path, sublime.ENCODED_POSITION)
+    def terminate():
+        pass
