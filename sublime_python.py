@@ -238,7 +238,7 @@ def system_python():
                 sys_py = subprocess.check_output(
                     ["where", "python"], creationflags=CREATION_FLAGS)
                 # use first result where many might return
-                sys_py = sys_py.split()[0]
+                sys_py = sys_py.splitlines()[0]
             else:
                 sys_py = subprocess.check_output(["which", "python"])
         except OSError:
