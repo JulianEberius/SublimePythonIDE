@@ -1,0 +1,2 @@
+SublimePythonIDE was just updated to a major new version, with many architectural changes and a new autocompletion engine (Jedi).
+It is not unlikely that some things will break, so feel free to report at https://github.com/JulianEberius/SublimePythonIDE/issues
