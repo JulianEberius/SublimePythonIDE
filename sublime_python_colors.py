@@ -87,7 +87,7 @@ def update_color_scheme(colors):
         found_styles = {"gutter": False, "warning": False, "error": False}
         for d in dicts.findall("./dict"):
             for c in d.getchildren():
-                if "sublimepythonide" in c.text:
+                if c.text and "sublimepythonide" in c.text:
                     style = style_map.get(c.text)
                     color_elem = d.find("./dict/string")
                     found_color = color_elem.text.upper().lstrip("#")
