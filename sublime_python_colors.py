@@ -111,13 +111,18 @@ def update_color_scheme(colors):
             return
 
         # write new theme
-        scheme_path = os.path.join(os.path.split(sublime.packages_path())[0], scheme)
+        original_name = os.path.splitext(os.path.basename(scheme))[0]
+        new_name = original_name + ' (SublimePythonIDE).tmTheme'
+        scheme_path = os.path.join(sublime.packages_path(), 'User', new_name)
 
         with open(scheme_path, 'w', encoding='utf8') as f:
             f.write(COLOR_SCHEME_PREAMBLE)
             f.write(ElementTree.tostring(plist, encoding='unicode'))
 
-        prefs.set('color_scheme', scheme)
+        # ST does not expect platform specific paths here, but only
+        # forward-slash separated paths relative to "Packages"
+        new_theme_setting = "/".join(['Packages', 'User', new_name])
+        prefs.set('color_scheme', new_theme_setting)
         sublime.save_settings("Preferences.sublime-settings")
 
     # run async
