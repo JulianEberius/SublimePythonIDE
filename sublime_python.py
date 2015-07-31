@@ -391,15 +391,21 @@ def python_only(func):
 
     if num_args == 1:
         @wraps(func)
-        def wrapper1(view):
-            if _is_python_syntax(view) and not view.is_scratch():
-                return func(view)
+        def wrapper1(arg):
+            if type(arg) == sublime.View:
+                view = arg
+            elif type(arg) == sublime.Window:
+                view = arg.active_view()
+            else:
+                view = None
+            if view is not None and _is_python_syntax(view) and not view.is_scratch():
+                return func(arg)
         return wrapper1
 
     else:
         @wraps(func)
         def wrapperN(self, view, *args):
-            if _is_python_syntax(view) and not view.is_scratch():
+            if type(view) == sublime.View and _is_python_syntax(view) and not view.is_scratch():
                 return func(self, view, *args)
         return wrapperN
 

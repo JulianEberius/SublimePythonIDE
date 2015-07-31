@@ -46,6 +46,7 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
     '''Retrieves the docstring for the identifier under the cursor and
     displays it in a new panel.'''
 
+    @python_only
     def run(self):
         view = self.window.active_view()
         row, col = view.rowcol(view.sel()[0].a)
@@ -126,6 +127,7 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
     Shows the definition of the identifier under the cursor, project-wide.
     '''
 
+    @python_only
     def run(self, *args):
         view = self.window.active_view()
         row, col = view.rowcol(view.sel()[0].a)
@@ -165,6 +167,7 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
 
 class PythonGoBackCommand(sublime_plugin.WindowCommand):
 
+    @python_only
     def run(self, *args):
         if GOTO_STACK:
             file_name, lineno = GOTO_STACK.pop()
