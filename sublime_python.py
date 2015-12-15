@@ -326,14 +326,13 @@ def proxy_for(view):
     requested interpreter'''
     proxy = None
     with PROXY_LOCK:
-        pythons = (
-            normalize_path(get_setting("python_interpreter", view, ""), True),
-            normalize_path(project_venv_python(view)),
-            normalize_path(shebang_line_python(view)),
-            normalize_path(system_python()),
-        )
-
-        python = pythons[0] or pythons[1] or pythons[2] or pythons[3]
+        python = normalize_path(get_setting("python_interpreter", view, ""), True)
+        if not python:
+            python = normalize_path(project_venv_python(view))
+        if not python:
+            python = normalize_path(shebang_line_python(view))
+        if not python:
+            python = normalize_path(system_python())
 
         if not python or not os.path.exists(python[0]):
             raise OSError("""
