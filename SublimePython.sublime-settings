@@ -36,7 +36,7 @@
     // disable certain pep8 errors
     // overview of possible error codes at http://pep8.readthedocs.org/en/latest/intro.html#error-codes
     "pep8_ignore": [],
-    "pep8_max_line_length": 80,
+    "pep8_max_line_length": 79,
     "pyflakes_ignore": [],
 
     // If the organize imports refactoring should be called on every file save
