@@ -415,8 +415,8 @@ def _update_color_scheme():
     scopes used by the linting features'''
 
     colors = {
-        "warning": get_setting("warning_color"),
-        "error": get_setting("error_color")
+        "warning": get_setting("warning_color", default_value="EDBA00"),
+        "error": get_setting("error_color", default_value="DA2000")
     }
     sublime_python_colors.update_color_scheme(colors)
 
