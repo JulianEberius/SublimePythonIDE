@@ -316,8 +316,10 @@ def parse_errors(view, errors, lines, vid):
                 pyflakes.messages.UndefinedName,
                 pyflakes.messages.UndefinedExport,
                 pyflakes.messages.UndefinedLocal,
-                pyflakes.messages.Redefined,
+                pyflakes.messages.RedefinedWhileUnused,
                 pyflakes.messages.UnusedVariable,
+                pyflakes.messages.ReturnOutsideFunction,
+                pyflakes.messages.ReturnWithArgsInsideGenerator,
                 pyflakes.messages.RedefinedInListComp)):
             underline_word(error.lineno, error.message_args[0], underlines)
         elif isinstance(error, pyflakes.messages.ImportShadowedByLoopVar):
