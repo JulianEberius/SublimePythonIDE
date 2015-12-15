@@ -89,9 +89,19 @@ def update_color_scheme(colors):
             for c in d.getchildren():
                 if c.text and "sublimepythonide" in c.text:
                     style = style_map.get(c.text)
+                    if style is None:
+                        print("Warning: Unknown SublimePythonIDE color style", c.text)
+                        continue
                     color_elem = d.find("./dict/string")
+                    if color_elem is None:
+                        print("Warning: Error parsing theme", scheme)
+                        continue
                     found_color = color_elem.text.upper().lstrip("#")
-                    target_color = colors.get(style, DEFAULT_MARK_COLORS[style]).upper().lstrip("#")
+                    target_color = colors.get(style, DEFAULT_MARK_COLORS[style])
+                    if target_color is None:
+                        print("Warning: Error parsing theme", scheme, "unknown color style: ", style)
+                        continue
+                    target_color = target_color.upper().lstrip("#")
                     if found_color != target_color:
                         change = True
                         color_elem.text = "#" + target_color
