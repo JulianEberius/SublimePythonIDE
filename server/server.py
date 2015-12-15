@@ -185,7 +185,7 @@ class RopeFunctionsMixin(object):
                 for p in proposals if p.name != 'self='
             ]
 
-        jedi.cache.clear_caches()
+        jedi.cache.clear_time_caches()
         return proposals
 
     def documentation(self, source, project_path, file_path, loc):
