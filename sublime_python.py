@@ -392,7 +392,11 @@ def python_only(func):
     if num_args == 1:
         @wraps(func)
         def wrapper1(arg):
-            if type(arg) == sublime.View:
+            if isinstance(arg, sublime_plugin.WindowCommand):
+                view = arg.window.active_view()
+            elif isinstance(arg, sublime_plugin.TextCommand):
+                view = arg.view
+            elif type(arg) == sublime.View:
                 view = arg
             elif type(arg) == sublime.Window:
                 view = arg.active_view()
