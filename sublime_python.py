@@ -128,10 +128,10 @@ class Proxy(object):
             elif SERVER_DEBUGGING:
                 # debug mode two
                 self.port = self.get_free_port()
-                proc_args = [self.python, SERVER_SCRIPT,
+                proc_args = self.python + [SERVER_SCRIPT,
                              str(self.port), " --debug"]
                 self.proc = subprocess.Popen(
-                    proc_args, cwd=os.path.dirname(self.python),
+                    proc_args, cwd=os.path.dirname(self.python[0]),
                     stderr=subprocess.PIPE, creationflags=CREATION_FLAGS)
                 self.queue = Queue()
                 self.stderr_reader = AsynchronousFileReader(
@@ -144,9 +144,9 @@ class Proxy(object):
             else:
                 # standard run of the server in end-user mode
                 self.port = self.get_free_port()
-                proc_args = [self.python, SERVER_SCRIPT, str(self.port)]
+                proc_args = self.python + [SERVER_SCRIPT, str(self.port)]
                 self.proc = subprocess.Popen(
-                    proc_args, cwd=os.path.dirname(self.python),
+                    proc_args, cwd=os.path.dirname(self.python[0]),
                     creationflags=CREATION_FLAGS)
                 print("started server on port %i with %s" %
                       (self.port, self.python))
@@ -300,35 +300,66 @@ def project_venv_python(view):
         return python
 
 
+def shebang_line_python(view):
+    shebang_line = view.substr(view.line(0))
+    if shebang_line.startswith('#!'):
+        return shebang_line[2:].split(None, 1)
+
+
+def normalize_path(args, make_abs=False):
+    if not args:
+        return None
+    elif type(args) is str:
+        args = [args]
+    elif type(args) is not list:
+        args = list(args)
+
+    # args is guaranteed to be a non-empty list at this point
+    if make_abs:
+        args[0] = os.path.abspath(os.path.realpath(os.path.expanduser(args[0])))
+    return args
+
+
 def proxy_for(view):
     '''retrieve an existing proxy for an external Python process.
-    will automatically create a new proxy if non exists for the
+    will automatically create a new proxy if none exists for the
     requested interpreter'''
     proxy = None
     with PROXY_LOCK:
-        python = get_setting("python_interpreter", view, "")
-        if python == "":
-            python = project_venv_python(view) or system_python()
-        else:
-            python = os.path.abspath(
-                os.path.realpath(os.path.expanduser(python)))
+        python = normalize_path(get_setting("python_interpreter", view, ""), True)
+        if not python:
+            python = normalize_path(project_venv_python(view))
+        if not python:
+            python = normalize_path(shebang_line_python(view))
+        if not python:
+            python = normalize_path(system_python())
 
-        if not os.path.exists(python):
+        if not python or not os.path.exists(python[0]):
             raise OSError("""
 --------------------------------------------------------------------------------------------------------------
 Could not detect python, please set the python_interpreter (see README) using an absolute path or make sure a
-system python is installed and is reachable on the PATH.
---------------------------------------------------------------------------------------------------------------""")
+system python is installed and is reachable on the PATH. Here is the order in which paths are tried:
 
-        if python in PROXIES:
-            proxy = PROXIES[python]
+ - By "python_interpreter" Sublime settings: %r
+ - By auto-detecting venv: %r
+ - By #! (shebang) line in this file: %r
+ - By auto-detecting system Python: %r
+
+We use the first non-None value and ensure that the path exists before proceeding.
+--------------------------------------------------------------------------------------------------------------"""
+        % pythons)
+
+        # Since lists cannot be used as keys, a temporary tuple version of this is created.
+        python_as_key = tuple(python)
+        if python_as_key in PROXIES:
+            proxy = PROXIES[python_as_key]
         else:
             try:
                 proxy = Proxy(python)
             except OSError:
                 pass
             else:
-                PROXIES[python] = proxy
+                PROXIES[python_as_key] = proxy
     return proxy
 
 
