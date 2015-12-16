@@ -14,7 +14,15 @@ I also added a lot caching throughout the underlying Rope library which improved
 Configuration
 -------------
 
-The only necessary configuration at the moment is setting "python_interpreter" in your projects settings (Project->Edit Project) to use another interpreter than your system interpreter. Example:
+The only necessary configuration is pointing SublimePythonIDE at the correct Python interpreter to use.
+There are four mechanisms for detecting Python that are used in the following order:
+
+  - Checking the option "python_interpreter" in project settings (see below)
+  - Auto-detecting a virtual environment (in "venv" or $WORKON_HOME for virtualenvwrapper)
+  - Reading a #! (shebang) line in the active file
+  - Auto-detecting the system Python from $PATH
+
+The option "python_interpreter" can be set in the projects settings (Project->Edit Project). Example:
 
     {
         "folders": [
