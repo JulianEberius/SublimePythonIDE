@@ -34,6 +34,7 @@ CREATION_FLAGS = 0 if os.name != "nt" else 0x08000000
 DEBUG_PORT = None
 SERVER_DEBUGGING = False
 
+LAST_ERROR_TIME = None
 
 # Constants
 SERVER_SCRIPT = os.path.join(
@@ -325,29 +326,22 @@ def proxy_for(view):
     will automatically create a new proxy if none exists for the
     requested interpreter'''
     proxy = None
+
+    python_detectors = [
+        lambda: normalize_path(get_setting("python_interpreter", view, ""), True),
+        lambda: normalize_path(project_venv_python(view)),
+        lambda: normalize_path(shebang_line_python(view)),
+        lambda: normalize_path(system_python())
+    ]
     with PROXY_LOCK:
-        python = normalize_path(get_setting("python_interpreter", view, ""), True)
-        if not python:
-            python = normalize_path(project_venv_python(view))
-        if not python:
-            python = normalize_path(shebang_line_python(view))
-        if not python:
-            python = normalize_path(system_python())
+        for detector in python_detectors:
+            python = detector()
+            if python is not None:
+                break
 
         if not python or not os.path.exists(python[0]):
-            raise OSError("""
---------------------------------------------------------------------------------------------------------------
-Could not detect python, please set the python_interpreter (see README) using an absolute path or make sure a
-system python is installed and is reachable on the PATH. Here is the order in which paths are tried:
-
- - By "python_interpreter" Sublime settings: %r
- - By auto-detecting venv: %r
- - By #! (shebang) line in this file: %r
- - By auto-detecting system Python: %r
-
-We use the first non-None value and ensure that the path exists before proceeding.
---------------------------------------------------------------------------------------------------------------"""
-        % pythons)
+            show_python_not_found_error(python_detectors)
+            return
 
         # Since lists cannot be used as keys, a temporary tuple version of this is created.
         python_as_key = tuple(python)
@@ -361,6 +355,27 @@ We use the first non-None value and ensure that the path exists before proceedin
             else:
                 PROXIES[python_as_key] = proxy
     return proxy
+
+
+def show_python_not_found_error(python_detectors):
+    if LAST_ERROR_TIME is None or (time.time() - LAST_ERROR_TIME > 10.0):
+        do_not_show_again = sublime.ok_cancel_dialog("""
+Could not detect python, please set the python_interpreter (see README) using an absolute path or make sure a
+system python is installed and is reachable on the PATH. Here is the order in which paths are tried:
+
+ - By "python_interpreter" Sublime settings: %r
+ - By auto-detecting venv: %r
+ - By #! (shebang) line in this file: %r
+ - By auto-detecting system Python: %r
+
+We use the first non-None value and ensure that the path exists before proceeding.
+""" % tuple(d() for d in python_detectors), "Do not show again")
+
+        global LAST_ERROR_TIME
+        if do_not_show_again:
+            LAST_ERROR_TIME = float("inf")
+        else:
+            LAST_ERROR_TIME = time.time()
 
 
 def root_folder_for(view):
