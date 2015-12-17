@@ -14,6 +14,8 @@ I also added a lot caching throughout the underlying Rope library which improved
 Configuration
 -------------
 
+## Python location
+
 The only necessary configuration is pointing SublimePythonIDE at the correct Python interpreter to use.
 There are four mechanisms for detecting Python that are used in the following order:
 
@@ -39,6 +41,13 @@ The option "python_interpreter" can be set in the projects settings (Project->Ed
     }
 
 This is also the way to select a virtualenv (point it to the interpreter in the venv) and thus get the completions/definitions for you project working.
+
+To suppress the "Could not find Python dialog", save the following setting:
+
+    "suppress_python_not_found_error": false,
+
+
+## Imports location
 
 SublimePythonIDE will also look up imports relative to the project root directory (the top directory of your project).
 

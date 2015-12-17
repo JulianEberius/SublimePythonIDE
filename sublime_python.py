@@ -358,24 +358,48 @@ def proxy_for(view):
 
 
 def show_python_not_found_error(python_detectors):
-    if LAST_ERROR_TIME is None or (time.time() - LAST_ERROR_TIME > 10.0):
-        do_not_show_again = sublime.ok_cancel_dialog("""
-Could not detect python, please set the python_interpreter (see README) using an absolute path or make sure a
-system python is installed and is reachable on the PATH. Here is the order in which paths are tried:
+    global LAST_ERROR_TIME
+    if LAST_ERROR_TIME is not None and (time.time() < LAST_ERROR_TIME + 10.0):
+        return
+    LAST_ERROR_TIME = time.time()
 
- - By "python_interpreter" Sublime settings: %r
- - By auto-detecting venv: %r
- - By #! (shebang) line in this file: %r
- - By auto-detecting system Python: %r
+    msg = (
+        "SublimePythonIDE: Could not find Python.\n"
+        "Make sure Python is accessible via one of these methods:\n"
+        "\n"
+        " \xb7 From SublimePythonIDE settings:\n"
+        "   %r\n"
+        " \xb7 From venv settings:\n"
+        "   %r\n"
+        " \xb7 From #! (shebang) line in this file:\n"
+        "   %r\n"
+        " \xb7 From system Python (via $PATH):\n"
+        "   %r\n"
+        "\n"
+        "We use the first non-None value and ensure that the path exists before proceeding.\n"
+        % tuple(d() for d in python_detectors)
+    )
 
-We use the first non-None value and ensure that the path exists before proceeding.
-""" % tuple(d() for d in python_detectors), "Do not show again")
-
-        global LAST_ERROR_TIME
-        if do_not_show_again:
+    if not get_setting("suppress_python_not_found_error", False):
+        result = sublime.yes_no_cancel_dialog(
+            msg +
+            "\n"
+            "\"Do Not Show Again\" suppresses this dialog until next launch. "
+            "\"More Info\" shows help for configuring Python or permanently suppressing this dialog."
+            , "More Info", "Do Not Show Again"
+        )
+        # In case the user takes more than 10 seconds to react to the dialog
+        LAST_ERROR_TIME = time.time()
+        if result == sublime.DIALOG_YES:
+            import webbrowser
+            webbrowser.open("https://github.com/JulianEberius/SublimePythonIDE#configuration")
+        elif result == sublime.DIALOG_NO:
             LAST_ERROR_TIME = float("inf")
-        else:
-            LAST_ERROR_TIME = time.time()
+
+    raise OSError(
+        msg +
+        "More info: https://github.com/JulianEberius/SublimePythonIDE#configuration"
+    )
 
 
 def root_folder_for(view):
