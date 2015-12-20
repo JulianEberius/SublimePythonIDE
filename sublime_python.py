@@ -34,7 +34,7 @@ CREATION_FLAGS = 0 if os.name != "nt" else 0x08000000
 DEBUG_PORT = None
 SERVER_DEBUGGING = False
 
-LAST_ERROR_TIME = None
+MESSAGE_SHOWN = set()
 
 # Constants
 SERVER_SCRIPT = os.path.join(
@@ -358,12 +358,18 @@ def proxy_for(view):
 
 
 def show_python_not_found_error(python_detectors):
-    global LAST_ERROR_TIME
-    if LAST_ERROR_TIME is not None and (time.time() < LAST_ERROR_TIME + 10.0):
+    # only trigger once
+    current_window = sublime.active_window()
+    context = current_window.project_file_name()
+    if context is None:
+        context = current_window.active_view()
+
+    if context in MESSAGE_SHOWN:
         return
-    LAST_ERROR_TIME = time.time()
+    MESSAGE_SHOWN.add(context)
 
     msg = (
+        "\n----------------------------------------------------------------------------------\n"
         "SublimePythonIDE: Could not find Python.\n"
         "Make sure Python is accessible via one of these methods:\n"
         "\n"
@@ -377,29 +383,13 @@ def show_python_not_found_error(python_detectors):
         "   %r\n"
         "\n"
         "We use the first non-None value and ensure that the path exists before proceeding.\n"
+        "More info: https://github.com/JulianEberius/SublimePythonIDE#configuration\n"
+        "----------------------------------------------------------------------------------"
         % tuple(d() for d in python_detectors)
     )
 
-    if not get_setting("suppress_python_not_found_error", False):
-        result = sublime.yes_no_cancel_dialog(
-            msg +
-            "\n"
-            "\"Do Not Show Again\" suppresses this dialog until next launch. "
-            "\"More Info\" shows help for configuring Python or permanently suppressing this dialog.",
-            "More Info", "Do Not Show Again"
-        )
-        # In case the user takes more than 10 seconds to react to the dialog
-        LAST_ERROR_TIME = time.time()
-        if result == sublime.DIALOG_YES:
-            import webbrowser
-            webbrowser.open("https://github.com/JulianEberius/SublimePythonIDE#configuration")
-        elif result == sublime.DIALOG_NO:
-            LAST_ERROR_TIME = float("inf")
-
-    raise OSError(
-        msg +
-        "More info: https://github.com/JulianEberius/SublimePythonIDE#configuration"
-    )
+    print(msg)
+    sublime.active_window().run_command("show_panel", {"panel": "console", "toggle": True})
 
 
 def root_folder_for(view):
