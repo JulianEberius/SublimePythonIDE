@@ -1,0 +1,9 @@
+SublimePythonIDE was just updated to a new minor version. The detection of the Python interpreter to use was improved. It now uses four different methods in the following order (see README or Github for details):
+
+  - Check for the option "python_interpreter" in project settings
+  - Try to auto-detect virtual environments (in "venv" or $WORKON_HOME for virtualenvwrapper)
+  - Read a #! (shebang) line in the active file (NEW)
+  - Try to auto-detect the system Python from $PATH
+
+In addition, the bundled libraries were updated and open issues were fixed.
+Feel free to report any new issues at https://github.com/JulianEberius/SublimePythonIDE/issues
