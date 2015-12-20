@@ -385,8 +385,8 @@ def show_python_not_found_error(python_detectors):
             msg +
             "\n"
             "\"Do Not Show Again\" suppresses this dialog until next launch. "
-            "\"More Info\" shows help for configuring Python or permanently suppressing this dialog."
-            , "More Info", "Do Not Show Again"
+            "\"More Info\" shows help for configuring Python or permanently suppressing this dialog.",
+            "More Info", "Do Not Show Again"
         )
         # In case the user takes more than 10 seconds to react to the dialog
         LAST_ERROR_TIME = time.time()
