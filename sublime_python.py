@@ -358,6 +358,9 @@ def proxy_for(view):
 
 
 def show_python_not_found_error(python_detectors):
+    if get_setting("suppress_python_not_found_error", False):
+        return
+
     # only trigger once
     current_window = sublime.active_window()
     context = current_window.project_file_name()
@@ -383,7 +386,7 @@ def show_python_not_found_error(python_detectors):
         "   %r\n"
         "\n"
         "We use the first non-None value and ensure that the path exists before proceeding.\n"
-        "More info: https://github.com/JulianEberius/SublimePythonIDE#configuration\n"
+        "More info on configuring SublimePythonIDE (or on permanently suppressing this message): https://github.com/JulianEberius/SublimePythonIDE#configuration\n"
         "----------------------------------------------------------------------------------"
         % tuple(d() for d in python_detectors)
     )

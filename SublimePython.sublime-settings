@@ -40,5 +40,8 @@
     "pyflakes_ignore": [],
 
     // If the organize imports refactoring should be called on every file save
-    "python_organize_imports_on_save": false
+    "python_organize_imports_on_save": false,
+
+    // disables messages about Python interpreters not being found
+    "suppress_python_not_found_error": false
 }
