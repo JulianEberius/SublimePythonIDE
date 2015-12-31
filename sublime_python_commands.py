@@ -146,22 +146,24 @@ class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
             return
 
         target_path, target_lineno = def_result
-        current_lineno = view.rowcol(view.sel()[0].end())[0] + 1
+        current_rowcol = view.rowcol(view.sel()[0].end())
+        current_lineno = current_rowcol[0] + 1
+        current_colno = current_rowcol[1] + 1
 
         if None not in (path, target_path, target_lineno):
-            self.save_pos(file_or_buffer_name(view), current_lineno)
+            self.save_pos(file_or_buffer_name(view), current_lineno, current_colno)
             path = target_path + ":" + str(target_lineno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
         elif target_lineno is not None:
-            self.save_pos(file_or_buffer_name(view), current_lineno)
+            self.save_pos(file_or_buffer_name(view), current_lineno, current_colno)
             path = file_or_buffer_name(view) + ":" + str(target_lineno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
         else:
             # fail silently (user selected whitespace, etc)
             pass
 
-    def save_pos(self, file_path, lineno):
-        GOTO_STACK.append((file_path, lineno))
+    def save_pos(self, file_path, lineno, colno=0):
+        GOTO_STACK.append((file_path, lineno, colno))
 
 
 class PythonGoBackCommand(sublime_plugin.WindowCommand):
@@ -169,6 +171,6 @@ class PythonGoBackCommand(sublime_plugin.WindowCommand):
     @python_only
     def run(self, *args):
         if GOTO_STACK:
-            file_name, lineno = GOTO_STACK.pop()
-            path = file_name + ":" + str(lineno)
+            file_name, lineno, colno = GOTO_STACK.pop()
+            path = "%s:%d:%d" % (file_name, lineno, colno)
             self.window.open_file(path, sublime.ENCODED_POSITION)
