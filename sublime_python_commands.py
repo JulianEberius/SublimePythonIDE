@@ -122,7 +122,6 @@ class PythonGetDocumentationCommand(sublime_plugin.WindowCommand):
 
 
 class PythonGotoDefinitionCommand(sublime_plugin.WindowCommand):
-
     '''
     Shows the definition of the identifier under the cursor, project-wide.
     '''
